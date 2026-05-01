@@ -82,7 +82,7 @@ fn isOperator(value: u8) bool {
     };
 }
 fn isKeyword(value: []const u8) bool {
-    const keywords = [_][]const u8{ "let", "if", "while", "return" };
+    const keywords = [_][]const u8{ "let", "if", "while", "return", "true", "false" };
     for (keywords) |kw| {
         if (std.mem.eql(u8, value, kw)) return true;
     }

@@ -3,4 +3,4 @@ let y = 20;
 
 
 
-let u = x + y
+let u = true;

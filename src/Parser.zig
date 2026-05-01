@@ -73,6 +73,15 @@ fn parsePrimary(self: *Self, allocator: std.mem.Allocator) !*Ast.Expression {
     const tok = self.lexer.next() orelse return error.UnexpectedEof;
     return switch (tok.token_kind) {
         .Number => try Ast.Expression.createLiteral(allocator, try Ast.Value.createNumber(tok.value)),
+        .Keyword => {
+            if (std.mem.eql(u8, tok.value, "true")) {
+                return Ast.Expression.createLiteral(allocator, .{ .boolean = true });
+            }
+            if (std.mem.eql(u8, tok.value, "false")) {
+                return Ast.Expression.createLiteral(allocator, .{ .boolean = false });
+            }
+            return error.UnexpectedToken;
+        },
         .Identifier => try Ast.Expression.createIdentifier(allocator, tok.value),
         else => error.UnexpectedToken,
     };
