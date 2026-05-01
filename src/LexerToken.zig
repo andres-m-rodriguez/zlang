@@ -14,6 +14,8 @@ pub fn init(value: []const u8, token_kind: TokenKind) Self {
 pub const TokenKind = enum {
     Number,
     Operator,
+    Keyword,
+    Identifier,
     Unknown,
 };
 
