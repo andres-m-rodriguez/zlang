@@ -21,7 +21,7 @@ pub fn next(self: *Self) ?LexerToken {
     return tok;
 }
 pub fn scan(self: *Self) ?LexerToken {
-    while (self.cursor < self.source.len and std.ascii.isWhitespace(self.source[self.cursor])) {
+    while (self.cursor < self.source.len and (std.ascii.isWhitespace(self.source[self.cursor]) or self.source[self.cursor] == ';') ) {
         self.cursor += 1;
     }
     if (self.cursor >= self.source.len)
