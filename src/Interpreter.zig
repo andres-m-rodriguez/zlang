@@ -82,11 +82,12 @@ fn evalWhile(self: *Self, w: Ast.WhileStmt, allocator: std.mem.Allocator) Error!
         else => return Error.TypeMismatch,
     };
     while (cond_bool) {
-        try self.env.push(allocator);
-        for (w.then_branch) |s| {
-            _ = try self.evalStatement(s, allocator);
+        {
+            try self.env.push(allocator);
+            defer self.env.pop(allocator);
+            for (w.then_branch) |s| _ = try self.evalStatement(s, allocator);
         }
-        self.env.pop(allocator);
+
         condition = try self.eval(w.condition);
         cond_bool = switch (condition) {
             .boolean => |b| b,
@@ -123,6 +124,10 @@ fn evalBinary(self: *Self, b: Ast.BinaryExpr) Error!Ast.Value {
         .sub => .{ .number = ln - rn },
         .mul => .{ .number = ln * rn },
         .div => .{ .number = ln / rn },
+        .lt => .{ .boolean = ln < rn },
+        .lte => .{ .boolean = ln <= rn },
+        .gt => .{ .boolean = ln > rn },
+        .gte => .{ .boolean = ln >= rn },
         .eq, .neq => unreachable,
     };
 }

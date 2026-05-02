@@ -149,11 +149,27 @@ fn parseExpression(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Express
 }
 
 fn parseEquality(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
-    var left = try self.parseAdditive(allocator);
+    var left = try self.parseComparison(allocator);
     while (self.lexer.peek()) |tok| {
         const op: Ast.BinOp = switch (tok.token_kind) {
             .EqualEqual => .eq,
             .BangEqual => .neq,
+            else => break,
+        };
+        _ = self.lexer.next();
+        const right = try self.parseComparison(allocator);
+        left = try Ast.Expression.createBinary(allocator, op, left, right);
+    }
+    return left;
+}
+fn parseComparison(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
+    var left = try self.parseAdditive(allocator);
+    while (self.lexer.peek()) |tok| {
+        const op: Ast.BinOp = switch (tok.token_kind) {
+            .Greater => .gt,
+            .GreaterEqual => .gte,
+            .Less => .lt,
+            .LessEqual => .lte,
             else => break,
         };
         _ = self.lexer.next();
