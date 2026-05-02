@@ -104,6 +104,25 @@ fn parseIf(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
     return Ast.Statement.createIf(allocator, condition, then_branch, else_branch);
 }
 
+fn parseWhile(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
+    _ = self.lexer.next(); // consume while
+    const lp = self.lexer.next() orelse return Error.UnexpectedEof;
+    if (lp.token_kind != LexerToken.TokenKind.LParen)
+        return Error.UnexpectedToken;
+    const condition = try self.parseExpression(allocator);
+    errdefer condition.deinit(allocator);
+    const rp = self.lexer.next() orelse return Error.UnexpectedEof;
+    if (rp.token_kind != LexerToken.TokenKind.RParen)
+        return Error.UnexpectedToken;
+    const then_branch = try self.parseBlock(allocator);
+    errdefer {
+        for (then_branch) |s| s.deinit(allocator);
+        allocator.free(then_branch);
+    }
+
+    return Ast.Statement.createWhile(allocator, condition, then_branch);
+}
+
 fn parseBlock(self: *Self, allocator: std.mem.Allocator) Error![]*Ast.Statement {
     const lbrace = self.lexer.next() orelse return error.UnexpectedEof;
     if (lbrace.token_kind != .LBrace) return error.ExpectedLBrace;
@@ -125,13 +144,6 @@ fn parseBlock(self: *Self, allocator: std.mem.Allocator) Error![]*Ast.Statement 
 
     return stmts.toOwnedSlice(allocator);
 }
-
-fn parseWhile(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
-    _ = self;
-    _ = allocator;
-    return Error.UnexpectedEof;
-}
-
 fn parseExpression(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
     return self.parseEquality(allocator);
 }

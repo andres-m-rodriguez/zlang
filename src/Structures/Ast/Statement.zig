@@ -5,6 +5,7 @@ pub const Statement = union(enum) {
     let: LetStmt,
     assign: AssignStmt,
     if_stmt: IfStmt,
+    while_stmt: WhileStmt,
     expression: *Expression,
 
     pub fn createLet(
@@ -42,6 +43,14 @@ pub const Statement = union(enum) {
         } };
         return node;
     }
+    pub fn createWhile(allocator: std.mem.Allocator, condition: *Expression, then_branch: []*Statement) !*Statement {
+        const node = try allocator.create(Statement);
+        node.* = .{ .while_stmt = .{
+            .condition = condition,
+            .then_branch = then_branch,
+        } };
+        return node;
+    }
 
     pub fn createExpression(allocator: std.mem.Allocator, expr: *Expression) !*Statement {
         const node = try allocator.create(Statement);
@@ -53,6 +62,7 @@ pub const Statement = union(enum) {
         switch (self.*) {
             .let => |l| l.deinit(allocator),
             .if_stmt => |i| i.deinit(allocator),
+            .while_stmt => |w| w.deinit(allocator),
             .assign => |a| a.deinit(allocator),
             .expression => |e| e.deinit(allocator),
         }
@@ -93,5 +103,17 @@ pub const IfStmt = struct {
             for (branch) |s| s.deinit(allocator);
             allocator.free(branch);
         }
+    }
+};
+
+pub const WhileStmt = struct {
+    condition: *Expression,
+    then_branch: []*Statement,
+
+    pub fn deinit(self: WhileStmt, allocator: std.mem.Allocator) void {
+        self.condition.deinit(allocator);
+
+        for (self.then_branch) |s| s.deinit(allocator);
+        allocator.free(self.then_branch);
     }
 };

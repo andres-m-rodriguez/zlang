@@ -38,6 +38,7 @@ fn evalStatement(self: *Self, stmt: *Ast.Statement, allocator: std.mem.Allocator
         .expression => |e| try self.eval(e),
         .if_stmt => |i| try self.evalIf(i, allocator),
         .assign => |a| try self.evalAssign(a),
+        .while_stmt => |w| try self.evalWhile(w, allocator),
     };
 }
 
@@ -72,6 +73,26 @@ fn evalIf(self: *Self, i: Ast.IfStmt, allocator: std.mem.Allocator) Error!Ast.Va
         }
     }
     self.env.pop(allocator);
+    return .nil;
+}
+fn evalWhile(self: *Self, w: Ast.WhileStmt, allocator: std.mem.Allocator) Error!Ast.Value {
+    var condition = try self.eval(w.condition);
+    var cond_bool = switch (condition) {
+        .boolean => |b| b,
+        else => return Error.TypeMismatch,
+    };
+    while (cond_bool) {
+        try self.env.push(allocator);
+        for (w.then_branch) |s| {
+            _ = try self.evalStatement(s, allocator);
+        }
+        self.env.pop(allocator);
+        condition = try self.eval(w.condition);
+        cond_bool = switch (condition) {
+            .boolean => |b| b,
+            else => return Error.TypeMismatch,
+        };
+    }
     return .nil;
 }
 

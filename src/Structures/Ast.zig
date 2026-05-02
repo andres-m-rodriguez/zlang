@@ -7,6 +7,7 @@ pub const Statement = statement_mod.Statement;
 pub const LetStmt = statement_mod.LetStmt;
 pub const IfStmt = statement_mod.IfStmt;
 pub const AssignStmt = statement_mod.AssignStmt;
+pub const WhileStmt = statement_mod.WhileStmt;
 
 pub const Expression = expression_mod.Expression;
 pub const BinaryExpr = expression_mod.BinaryExpr;
