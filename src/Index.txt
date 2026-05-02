@@ -1,6 +1,2 @@
 let x = 10;
-let y = 20;
-
-
-
-let u = true;
+x =  2 + 2 * 4

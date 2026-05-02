@@ -13,9 +13,35 @@ pub fn init(value: []const u8, token_kind: TokenKind) Self {
 
 pub const TokenKind = enum {
     Number,
-    Operator,
-    Bool,
-    Keyword,
     Identifier,
     Unknown,
+
+    // Keywords
+    Let,
+    If,
+    Else,
+    While,
+    Return,
+    True,
+    False,
+
+    // Operators
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Equal,
+    EqualEqual,
+    Bang,
+    BangEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+
+    // Punctuation
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
 };

@@ -1,45 +1,25 @@
 const std = @import("std");
 const Ast = @import("Structures/Ast.zig");
+const ScopeStack = @import("ScopeStack.zig");
 const Self = @This();
 
-const EvalError = error{
+const Error = error{
     UnknownOperator,
     TypeMismatch,
     NotANumber,
     UndefinedVariable,
     OutOfMemory,
-};
+} || ScopeStack.Error;
 
-const Environment = struct {
-    values: std.StringHashMapUnmanaged(Ast.Value),
-
-    pub fn init() Environment {
-        return .{ .values = .{} };
-    }
-
-    pub fn deinit(self: *Environment, allocator: std.mem.Allocator) void {
-        self.values.deinit(allocator);
-    }
-
-    pub fn define(self: *Environment, allocator: std.mem.Allocator, name: []const u8, value: Ast.Value) !void {
-        try self.values.put(allocator, name, value);
-    }
-
-    pub fn get(self: *Environment, name: []const u8) EvalError!Ast.Value {
-        return self.values.get(name) orelse error.UndefinedVariable;
-    }
-};
-
-env: Environment,
+env: ScopeStack,
 allocator: std.mem.Allocator,
 
 pub fn init(allocator: std.mem.Allocator) Self {
-    return .{
-        .env = Environment.init(),
+    return Self{
+        .env = .empty,
         .allocator = allocator,
     };
 }
-
 pub fn deinit(self: *Self) void {
     self.env.deinit(self.allocator);
 }
@@ -47,25 +27,55 @@ pub fn deinit(self: *Self) void {
 pub fn execute(self: *Self, statements: []*Ast.Statement, allocator: std.mem.Allocator) ![]const u8 {
     var last: Ast.Value = .nil;
     for (statements) |stmt| {
-        last = try self.evalStatement(stmt);
+        last = try self.evalStatement(stmt, allocator);
     }
     return formatValue(allocator, last);
 }
 
-fn evalStatement(self: *Self, stmt: *Ast.Statement) EvalError!Ast.Value {
+fn evalStatement(self: *Self, stmt: *Ast.Statement, allocator: std.mem.Allocator) Error!Ast.Value {
     return switch (stmt.*) {
         .let => |l| try self.evalLet(l),
         .expression => |e| try self.eval(e),
+        .if_stmt => |i| try self.evalIf(i, allocator),
+        .assign => |a| try self.evalAssign(a),
     };
 }
 
-fn evalLet(self: *Self, l: Ast.LetStmt) EvalError!Ast.Value {
+fn evalLet(self: *Self, l: Ast.LetStmt) Error!Ast.Value {
     const value = try self.eval(l.value);
     try self.env.define(self.allocator, l.name, value);
+
     return value;
 }
+fn evalAssign(self: *Self, a: Ast.AssignStmt) Error!Ast.Value {
+    const value = try self.eval(a.value);
+    try self.env.assign(self.allocator, a.name, value);
 
-fn eval(self: *Self, expr: *Ast.Expression) EvalError!Ast.Value {
+    return value;
+}
+fn evalIf(self: *Self, i: Ast.IfStmt, allocator: std.mem.Allocator) Error!Ast.Value {
+    const condition = try self.eval(i.condition);
+    const cond_bool = switch (condition) {
+        .boolean => |b| b,
+        else => return error.TypeMismatch,
+    };
+
+    if (cond_bool) {
+        try self.env.push(allocator);
+        for (i.then_branch) |s| {
+            _ = try self.evalStatement(s, allocator);
+        }
+    } else if (i.else_branch) |branch| {
+        for (branch) |s| {
+            try self.env.push(allocator);
+            _ = try self.evalStatement(s, allocator);
+        }
+    }
+    self.env.pop(allocator);
+    return .nil;
+}
+
+fn eval(self: *Self, expr: *Ast.Expression) Error!Ast.Value {
     return switch (expr.*) {
         .literal => |v| v,
         .identifier => |name| try self.env.get(name),
@@ -75,9 +85,16 @@ fn eval(self: *Self, expr: *Ast.Expression) EvalError!Ast.Value {
     };
 }
 
-fn evalBinary(self: *Self, b: Ast.BinaryExpr) EvalError!Ast.Value {
+fn evalBinary(self: *Self, b: Ast.BinaryExpr) Error!Ast.Value {
     const left = try self.eval(b.left);
     const right = try self.eval(b.right);
+
+    switch (b.op) {
+        .eq => return .{ .boolean = valuesEqual(left, right) },
+        .neq => return .{ .boolean = !valuesEqual(left, right) },
+        else => {},
+    }
+
     const ln = try valueAsNumber(left);
     const rn = try valueAsNumber(right);
     return switch (b.op) {
@@ -85,10 +102,30 @@ fn evalBinary(self: *Self, b: Ast.BinaryExpr) EvalError!Ast.Value {
         .sub => .{ .number = ln - rn },
         .mul => .{ .number = ln * rn },
         .div => .{ .number = ln / rn },
+        .eq, .neq => unreachable,
     };
 }
-
-fn evalUnary(self: *Self, u: Ast.UnaryExpr) EvalError!Ast.Value {
+fn valuesEqual(a: Ast.Value, b: Ast.Value) bool {
+    return switch (a) {
+        .number => |an| switch (b) {
+            .number => |bn| an == bn,
+            else => false,
+        },
+        .boolean => |ab| switch (b) {
+            .boolean => |bb| ab == bb,
+            else => false,
+        },
+        .nil => switch (b) {
+            .nil => true,
+            else => false,
+        },
+        .string => |as| switch (b) {
+            .string => |bs| std.mem.eql(u8, as, bs),
+            else => false,
+        },
+    };
+}
+fn evalUnary(self: *Self, u: Ast.UnaryExpr) Error!Ast.Value {
     const operand = try self.eval(u.operand);
     const n = try valueAsNumber(operand);
     return switch (u.op) {
@@ -96,7 +133,7 @@ fn evalUnary(self: *Self, u: Ast.UnaryExpr) EvalError!Ast.Value {
     };
 }
 
-fn valueAsNumber(value: Ast.Value) EvalError!f64 {
+fn valueAsNumber(value: Ast.Value) Error!f64 {
     return switch (value) {
         .number => |n| n,
         else => error.NotANumber,
