@@ -1,15 +1,14 @@
 const std = @import("std");
 const Value = @import("Structures/Ast/Value.zig").Value;
-
 const Self = @This();
 
 pub const Opcode = enum(u8) {
     // Stack / constants
-    LoadConst, 
+    LoadConst,
     LoadTrue,
     LoadFalse,
-    LoadLocal, 
-    StoreLocal, 
+    LoadLocal,
+    StoreLocal,
     Pop,
     // Arithmetic
     Add,
@@ -33,6 +32,7 @@ pub const Opcode = enum(u8) {
     // Termination
     Return,
 };
+
 code: []const u8,
 constants: []const Value,
 
@@ -41,18 +41,21 @@ pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
     allocator.free(self.constants);
 }
 
-pub fn readOpcode(self: *const Self, pc: u32) Opcode {
+pub fn readOpcode(self: *const Self, pc: usize) Opcode {
     return @enumFromInt(self.code[pc]);
 }
 
-pub fn readU8(self: *const Self, pc: u32) u8 {
+pub fn readByte(self: *const Self, pc: usize) u8 {
     return self.code[pc];
 }
 
-pub fn readU16(self: *const Self, pc: u32) u16 {
-    return @as(u16, self.code[pc]) | (@as(u16, self.code[pc + 1]) << 8);
+pub fn readU16(self: *const Self, pc: usize) u16 {
+    return std.mem.readInt(u16, self.code[pc..][0..2], .little);
 }
 
+pub fn readU32(self: *const Self, pc: usize) u32 {
+    return std.mem.readInt(u32, self.code[pc..][0..4], .little);
+}
 pub fn getConst(self: *const Self, idx: u8) Value {
     return self.constants[idx];
 }
@@ -60,7 +63,9 @@ pub fn getConst(self: *const Self, idx: u8) Value {
 pub fn operandSize(op: Opcode) u32 {
     return switch (op) {
         .LoadConst => 1,
-        .LoadLocal, .StoreLocal, .Jump, .JumpIfFalse => 2,
+        .LoadLocal, .StoreLocal => 4, // u32 slot
+        .Jump, .JumpIfFalse, .Loop => 2, // u16 offset
         else => 0,
     };
 }
+

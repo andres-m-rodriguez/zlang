@@ -15,6 +15,7 @@ pub const UnaryExpr = expression_mod.UnaryExpr;
 pub const IdentExpr = expression_mod.IdentExpr;
 
 pub const Value = value_mod.Value;
+pub const ValueContext = value_mod.Context;
 
 pub const BinOp = op_mod.BinOp;
 pub const UnaryOp = op_mod.UnaryOp;
