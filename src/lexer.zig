@@ -45,8 +45,12 @@ pub fn scan(self: *Self) ?LexerToken {
         self.cursor += tok.value.len;
         return tok;
     }
+    if (c == ':') {
+        self.cursor += 1;
+        return LexerToken.init(":", LexerToken.TokenKind.Colon);
+    }
 
-    if (ascii.isAlphabetic(c) or c == '_') {
+    if (isIdentCont(self.source[self.cursor])) {
         const start = self.cursor;
         while (self.cursor < self.source.len and isIdentCont(self.source[self.cursor])) {
             self.cursor += 1;
@@ -131,7 +135,8 @@ fn isOperator(value: u8) bool {
 }
 
 fn keywordKind(value: []const u8) ?TokenKind {
-    if (std.mem.eql(u8, value, "let")) return .Let;
+    if (std.mem.eql(u8, value, "var")) return .Var;
+    if (std.mem.eql(u8, value, "const")) return .Const;
     if (std.mem.eql(u8, value, "if")) return .If;
     if (std.mem.eql(u8, value, "else")) return .Else;
     if (std.mem.eql(u8, value, "while")) return .While;

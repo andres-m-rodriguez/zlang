@@ -2,20 +2,42 @@ const std = @import("std");
 const Expression = @import("Expression.zig").Expression;
 
 pub const Statement = union(enum) {
-    let: LetStmt,
+    var_dclr: VarDeclr,
     assign: AssignStmt,
     if_stmt: IfStmt,
     while_stmt: WhileStmt,
     expression: *Expression,
 
-    pub fn createLet(
+    pub fn createVar(
         allocator: std.mem.Allocator,
         name: []const u8,
         type_annotation: ?[]const u8,
         value: *Expression,
     ) !*Statement {
         const node = try allocator.create(Statement);
-        node.* = .{ .let = .{ .name = name, .type_annotation = type_annotation, .value = value } };
+        node.* = .{ .var_dclr = .{
+            .name = name,
+            .type_annotation = type_annotation,
+            .is_mutable = true,
+            .value = value,
+        } };
+
+        return node;
+    }
+    pub fn createConst(
+        allocator: std.mem.Allocator,
+        name: []const u8,
+        type_annotation: ?[]const u8,
+        value: *Expression,
+    ) !*Statement {
+        const node = try allocator.create(Statement);
+        node.* = .{ .var_dclr = .{
+            .name = name,
+            .type_annotation = type_annotation,
+            .is_mutable = false,
+            .value = value,
+        } };
+
         return node;
     }
 
@@ -60,7 +82,7 @@ pub const Statement = union(enum) {
 
     pub fn deinit(self: *Statement, allocator: std.mem.Allocator) void {
         switch (self.*) {
-            .let => |l| l.deinit(allocator),
+            .var_dclr => |l| l.deinit(allocator),
             .if_stmt => |i| i.deinit(allocator),
             .while_stmt => |w| w.deinit(allocator),
             .assign => |a| a.deinit(allocator),
@@ -70,18 +92,21 @@ pub const Statement = union(enum) {
     }
 };
 
-pub const LetStmt = struct {
+pub const VarDeclr = struct {
     name: []const u8,
     type_annotation: ?[]const u8,
     value: *Expression,
+    slot: ?u32 = null,
+    is_mutable: bool,
 
-    pub fn deinit(self: LetStmt, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: VarDeclr, allocator: std.mem.Allocator) void {
         self.value.deinit(allocator);
     }
 };
 pub const AssignStmt = struct {
     name: []const u8,
     value: *Expression,
+    slot: ?u32 = null,
 
     pub fn deinit(self: AssignStmt, allocator: std.mem.Allocator) void {
         self.value.deinit(allocator);

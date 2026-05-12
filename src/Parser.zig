@@ -23,6 +23,51 @@ pub fn init(lexer: *Lexer) Self {
     return .{ .lexer = lexer };
 }
 
+fn unexpected(ctx: []const u8, tok: LexerToken) Error {
+    std.debug.print(
+        "[parser] {s}: unexpected token kind={s} value=\"{s}\"\n",
+        .{ ctx, @tagName(tok.token_kind), tok.value },
+    );
+    return Error.UnexpectedToken;
+}
+
+fn unexpectedEof(ctx: []const u8) Error {
+    std.debug.print("[parser] {s}: unexpected EOF\n", .{ctx});
+    return Error.UnexpectedEof;
+}
+
+fn expectedIdent(ctx: []const u8, tok: LexerToken) Error {
+    std.debug.print(
+        "[parser] {s}: expected identifier, got kind={s} value=\"{s}\"\n",
+        .{ ctx, @tagName(tok.token_kind), tok.value },
+    );
+    return Error.ExpectedIdentifier;
+}
+
+fn expectedEquals(ctx: []const u8, tok: LexerToken) Error {
+    std.debug.print(
+        "[parser] {s}: expected '=', got kind={s} value=\"{s}\"\n",
+        .{ ctx, @tagName(tok.token_kind), tok.value },
+    );
+    return Error.ExpectedEquals;
+}
+
+fn expectedLBrace(ctx: []const u8, tok: LexerToken) Error {
+    std.debug.print(
+        "[parser] {s}: expected '{{', got kind={s} value=\"{s}\"\n",
+        .{ ctx, @tagName(tok.token_kind), tok.value },
+    );
+    return Error.ExpectedLBrace;
+}
+
+fn expectedRBrace(ctx: []const u8, tok: LexerToken) Error {
+    std.debug.print(
+        "[parser] {s}: expected '}}', got kind={s} value=\"{s}\"\n",
+        .{ ctx, @tagName(tok.token_kind), tok.value },
+    );
+    return Error.ExpectedRBrace;
+}
+
 pub fn parse(self: *Self, allocator: std.mem.Allocator) Error![]*Ast.Statement {
     var statments: std.ArrayList(*Ast.Statement) = .empty;
     errdefer {
@@ -37,9 +82,10 @@ pub fn parse(self: *Self, allocator: std.mem.Allocator) Error![]*Ast.Statement {
 }
 
 fn parseStatement(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
-    const tok = self.lexer.peek() orelse return error.UnexpectedEof;
+    const tok = self.lexer.peek() orelse return unexpectedEof("parseStatement");
     switch (tok.token_kind) {
-        .Let => return self.parseLet(allocator),
+        .Var => return self.parseVar(allocator),
+        .Const => return self.parseConst(allocator),
         .If => return self.parseIf(allocator),
         .While => return self.parseWhile(allocator),
         else => {},
@@ -49,8 +95,11 @@ fn parseStatement(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statemen
 
     if (self.lexer.peek()) |next_tok| {
         if (next_tok.token_kind == .Equal) {
-            if (expr.* != .identifier) return Error.InvalidAssignmentTarget;
-            const name = expr.identifier;
+            if (expr.* != .identifier) {
+                std.debug.print("[parser] parseStatement: invalid assignment target\n", .{});
+                return Error.InvalidAssignmentTarget;
+            }
+            const name = expr.identifier.name;
             expr.deinit(allocator);
             _ = self.lexer.next();
             const value = try self.parseExpression(allocator);
@@ -61,27 +110,45 @@ fn parseStatement(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statemen
     return Ast.Statement.createExpression(allocator, expr);
 }
 
-fn parseLet(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
-    _ = self.lexer.next(); // consume 'let'
-    const ident = self.lexer.next() orelse return error.UnexpectedEof;
-    if (ident.token_kind != .Identifier) return error.ExpectedIdentifier;
-    const equal = self.lexer.next() orelse return error.UnexpectedEof;
-    if (equal.token_kind != .Equal) return error.ExpectedEquals;
+fn parseConst(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
+    _ = self.lexer.next(); // consume 'const'
+    const ident = self.lexer.next() orelse return unexpectedEof("parseConst (ident)");
+    if (ident.token_kind != .Identifier) return expectedIdent("parseConst", ident);
+    const colon = self.lexer.next() orelse return unexpectedEof("parseConst (colon)");
+    if (colon.token_kind != .Colon) return unexpected("parseConst (expected ':')", colon);
+    const type_id = self.lexer.next() orelse return unexpectedEof("parseConst (type)");
+    if (type_id.token_kind != .Identifier) return unexpected("parseConst (expected type)", type_id);
+    const equal = self.lexer.next() orelse return unexpectedEof("parseConst (equal)");
+    if (equal.token_kind != .Equal) return expectedEquals("parseConst", equal);
     const value = try self.parseExpression(allocator);
-    return Ast.Statement.createLet(allocator, ident.value, null, value);
+
+    return Ast.Statement.createConst(allocator, ident.value, type_id.value, value);
+}
+
+fn parseVar(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
+    _ = self.lexer.next(); // consume 'var'
+    const ident = self.lexer.next() orelse return unexpectedEof("parseVar (ident)");
+    if (ident.token_kind != .Identifier) return expectedIdent("parseVar", ident);
+    const colon = self.lexer.next() orelse return unexpectedEof("parseVar (colon)");
+    if (colon.token_kind != .Colon) return unexpected("parseVar (expected ':')", colon);
+    const type_id = self.lexer.next() orelse return unexpectedEof("parseVar (type)");
+    if (type_id.token_kind != .Identifier) return unexpected("parseVar (expected type)", type_id);
+    const equal = self.lexer.next() orelse return unexpectedEof("parseVar (equal)");
+    if (equal.token_kind != .Equal) return expectedEquals("parseVar", equal);
+    const value = try self.parseExpression(allocator);
+
+    return Ast.Statement.createVar(allocator, ident.value, type_id.value, value);
 }
 
 fn parseIf(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
     _ = self.lexer.next(); // consume 'if'
-    const pl = self.lexer.next() orelse return Error.UnexpectedEof;
-    if (pl.token_kind != LexerToken.TokenKind.LParen)
-        return Error.UnexpectedToken;
+    const pl = self.lexer.next() orelse return unexpectedEof("parseIf (LParen)");
+    if (pl.token_kind != .LParen) return unexpected("parseIf (expected '(')", pl);
 
     const condition = try self.parseExpression(allocator);
     errdefer condition.deinit(allocator);
-    const pr = self.lexer.next() orelse return Error.UnexpectedEof;
-    if (pr.token_kind != LexerToken.TokenKind.RParen)
-        return Error.UnexpectedToken;
+    const pr = self.lexer.next() orelse return unexpectedEof("parseIf (RParen)");
+    if (pr.token_kind != .RParen) return unexpected("parseIf (expected ')')", pr);
 
     const then_branch = try self.parseBlock(allocator);
     errdefer {
@@ -106,14 +173,12 @@ fn parseIf(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
 
 fn parseWhile(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
     _ = self.lexer.next(); // consume while
-    const lp = self.lexer.next() orelse return Error.UnexpectedEof;
-    if (lp.token_kind != LexerToken.TokenKind.LParen)
-        return Error.UnexpectedToken;
+    const lp = self.lexer.next() orelse return unexpectedEof("parseWhile (LParen)");
+    if (lp.token_kind != .LParen) return unexpected("parseWhile (expected '(')", lp);
     const condition = try self.parseExpression(allocator);
     errdefer condition.deinit(allocator);
-    const rp = self.lexer.next() orelse return Error.UnexpectedEof;
-    if (rp.token_kind != LexerToken.TokenKind.RParen)
-        return Error.UnexpectedToken;
+    const rp = self.lexer.next() orelse return unexpectedEof("parseWhile (RParen)");
+    if (rp.token_kind != .RParen) return unexpected("parseWhile (expected ')')", rp);
     const then_branch = try self.parseBlock(allocator);
     errdefer {
         for (then_branch) |s| s.deinit(allocator);
@@ -124,8 +189,8 @@ fn parseWhile(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
 }
 
 fn parseBlock(self: *Self, allocator: std.mem.Allocator) Error![]*Ast.Statement {
-    const lbrace = self.lexer.next() orelse return error.UnexpectedEof;
-    if (lbrace.token_kind != .LBrace) return error.ExpectedLBrace;
+    const lbrace = self.lexer.next() orelse return unexpectedEof("parseBlock (LBrace)");
+    if (lbrace.token_kind != .LBrace) return expectedLBrace("parseBlock", lbrace);
 
     var stmts: std.ArrayList(*Ast.Statement) = .empty;
     errdefer {
@@ -139,11 +204,12 @@ fn parseBlock(self: *Self, allocator: std.mem.Allocator) Error![]*Ast.Statement 
         try stmts.append(allocator, stmt);
     }
 
-    const rbrace = self.lexer.next() orelse return error.UnexpectedEof;
-    if (rbrace.token_kind != .RBrace) return error.ExpectedRBrace;
+    const rbrace = self.lexer.next() orelse return unexpectedEof("parseBlock (RBrace)");
+    if (rbrace.token_kind != .RBrace) return expectedRBrace("parseBlock", rbrace);
 
     return stmts.toOwnedSlice(allocator);
 }
+
 fn parseExpression(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
     return self.parseEquality(allocator);
 }
@@ -162,6 +228,7 @@ fn parseEquality(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expressio
     }
     return left;
 }
+
 fn parseComparison(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
     var left = try self.parseAdditive(allocator);
     while (self.lexer.peek()) |tok| {
@@ -221,21 +288,21 @@ fn parseUnary(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
 }
 
 fn parsePrimary(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
-    const tok = self.lexer.next() orelse return error.UnexpectedEof;
+    const tok = self.lexer.next() orelse return unexpectedEof("parsePrimary");
     return switch (tok.token_kind) {
         .Number => try Ast.Expression.createLiteral(allocator, try Ast.Value.createNumber(tok.value)),
         .True => try Ast.Expression.createLiteral(allocator, .{ .boolean = true }),
         .False => try Ast.Expression.createLiteral(allocator, .{ .boolean = false }),
         .Identifier => try Ast.Expression.createIdentifier(allocator, tok.value),
         .LParen => try self.parseGrouping(allocator),
-        else => error.UnexpectedToken,
+        else => unexpected("parsePrimary", tok),
     };
 }
 
 fn parseGrouping(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
     const inner = try self.parseExpression(allocator);
     errdefer inner.deinit(allocator);
-    const rparen = self.lexer.next() orelse return error.UnexpectedEof;
-    if (rparen.token_kind != .RParen) return error.UnexpectedToken;
+    const rparen = self.lexer.next() orelse return unexpectedEof("parseGrouping");
+    if (rparen.token_kind != .RParen) return unexpected("parseGrouping (expected ')')", rparen);
     return try Ast.Expression.createGrouping(allocator, inner);
 }

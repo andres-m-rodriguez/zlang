@@ -7,7 +7,7 @@ const UnaryOp = Op.UnaryOp;
 pub const Expression = union(enum) {
     literal: Value,
     binary: BinaryExpr,
-    identifier: []const u8,
+    identifier: IdentExpr,
     unary: UnaryExpr,
     grouping: *Expression,
 
@@ -33,7 +33,7 @@ pub const Expression = union(enum) {
     }
     pub fn createIdentifier(allocator: std.mem.Allocator, name: []const u8) !*Expression {
         const node = try allocator.create(Expression);
-        node.* = .{ .identifier = name };
+        node.* = .{ .identifier = .{ .name = name } };
         return node;
     }
     pub fn createUnary(allocator: std.mem.Allocator, op: UnaryOp, operand: *Expression) !*Expression {
@@ -47,6 +47,11 @@ pub const Expression = union(enum) {
         node.* = .{ .grouping = inner };
         return node;
     }
+};
+
+pub const IdentExpr = struct {
+    name: []const u8,
+    slot: ?u32 = null,
 };
 
 pub const BinaryExpr = struct {

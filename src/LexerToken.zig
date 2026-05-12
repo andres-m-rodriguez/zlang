@@ -17,7 +17,8 @@ pub const TokenKind = enum {
     Unknown,
 
     // Keywords
-    Let,
+    Var,
+    Const,
     If,
     Else,
     While,
@@ -44,4 +45,5 @@ pub const TokenKind = enum {
     RParen,
     LBrace,
     RBrace,
+    Colon,
 };
