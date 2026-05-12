@@ -25,9 +25,7 @@ pub fn next(self: *Self) ?LexerToken {
 }
 
 pub fn scan(self: *Self) ?LexerToken {
-    while (self.cursor < self.source.len and (ascii.isWhitespace(self.source[self.cursor]) or self.source[self.cursor] == ';')) {
-        self.cursor += 1;
-    }
+    self.skipTrivia();
     if (self.cursor >= self.source.len) return null;
 
     const c = self.source[self.cursor];
@@ -65,6 +63,27 @@ pub fn scan(self: *Self) ?LexerToken {
     self.cursor += 1;
     const slice: []const u8 = &[_]u8{c};
     return LexerToken.init(slice, .Unknown);
+}
+
+fn skipTrivia(self: *Self) void {
+    while (self.cursor < self.source.len) {
+        const c = self.source[self.cursor];
+        if (ascii.isWhitespace(c) or c == ';') {
+            self.cursor += 1;
+        } else if (c == '#') {
+            self.skipToEndOfLine();
+        } else if (c == '/' and self.cursor + 1 < self.source.len and self.source[self.cursor + 1] == '/') {
+            self.skipToEndOfLine();
+        } else {
+            break;
+        }
+    }
+}
+
+fn skipToEndOfLine(self: *Self) void {
+    while (self.cursor < self.source.len and self.source[self.cursor] != '\n') {
+        self.cursor += 1;
+    }
 }
 
 fn parseDigit(value: []const u8) ?LexerToken {

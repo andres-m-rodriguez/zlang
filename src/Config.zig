@@ -4,61 +4,35 @@ const Self = @This();
 
 stack_size: u32 = 4096,
 
-pub const Result = struct {
-    config: Self,
-    rest: []const u8,
-};
-
 pub const Error = error{
     MalformedDirective,
     UnknownDirective,
     InvalidValue,
 };
 
-pub fn parse(source: []const u8) Error!Result {
-    var config: Self = .{};
+pub fn init() Self {
+    return .{};
+}
+
+pub fn parse(self: *Self, source: []const u8) Error!void {
     var cursor: usize = 0;
     while (cursor < source.len) {
-        cursor = skipBlankLines(source, cursor);
-        if (cursor >= source.len or source[cursor] != '#') break;
-        cursor = try parseDirective(&config, source, cursor);
+        const line_end = std.mem.indexOfScalarPos(u8, source, cursor, '\n') orelse source.len;
+        const line = std.mem.trim(u8, source[cursor..line_end], " \t\r");
+        if (line.len > 0 and line[0] == '#') {
+            try self.applyDirective(line[1..]);
+        }
+        cursor = if (line_end < source.len) line_end + 1 else line_end;
     }
-    return .{ .config = config, .rest = source[cursor..] };
 }
 
-fn skipBlankLines(source: []const u8, start: usize) usize {
-    var cursor = start;
-    while (cursor < source.len) {
-        const c = source[cursor];
-        if (c == ' ' or c == '\t' or c == '\r' or c == '\n') {
-            cursor += 1;
-        } else break;
-    }
-    return cursor;
-}
+fn applyDirective(self: *Self, body: []const u8) Error!void {
+    const colon = std.mem.indexOfScalar(u8, body, ':') orelse return Error.MalformedDirective;
+    const name = std.mem.trim(u8, body[0..colon], " \t");
+    const value = std.mem.trim(u8, body[colon + 1 ..], " \t\r");
 
-fn parseDirective(config: *Self, source: []const u8, start: usize) Error!usize {
-    var cursor = start + 1; // skip '#'
-    const name_start = cursor;
-    while (cursor < source.len and source[cursor] != ':' and source[cursor] != '\n') {
-        cursor += 1;
-    }
-    if (cursor >= source.len or source[cursor] != ':') return Error.MalformedDirective;
-    const name = std.mem.trim(u8, source[name_start..cursor], " \t");
-    cursor += 1; // skip ':'
-
-    const value_start = cursor;
-    while (cursor < source.len and source[cursor] != '\n') cursor += 1;
-    const value = std.mem.trim(u8, source[value_start..cursor], " \t\r");
-
-    try applyDirective(config, name, value);
-    if (cursor < source.len and source[cursor] == '\n') cursor += 1;
-    return cursor;
-}
-
-fn applyDirective(config: *Self, name: []const u8, value: []const u8) Error!void {
     if (std.mem.eql(u8, name, "StackSize")) {
-        config.stack_size = std.fmt.parseInt(u32, value, 10) catch return Error.InvalidValue;
+        self.stack_size = std.fmt.parseInt(u32, value, 10) catch return Error.InvalidValue;
         return;
     }
     return Error.UnknownDirective;

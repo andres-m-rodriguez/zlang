@@ -14,9 +14,11 @@ pub fn main(init: std.process.Init) !void {
     var c_writer = std.Io.File.stdout().writer(init.io, &c_buffer);
     const writer = &c_writer.interface;
 
-    const cfg = try Config.parse(@embedFile("./Index.txt"));
+    const source = @embedFile("./Index.txt");
+    var cfg = Config.init();
+    try cfg.parse(source);
 
-    var lex = Lexer.init(cfg.rest);
+    var lex = Lexer.init(source);
     var parser = Parser.init(&lex);
 
     const ast = try parser.parse(allocator);
