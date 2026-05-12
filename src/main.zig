@@ -3,6 +3,7 @@ const Lexer = @import("Lexer.zig");
 const Ast = @import("Structures/Ast.zig");
 const Parser = @import("Parser.zig");
 const Resolver = @import("Resolver.zig");
+const TypeChecker = @import("TypeChecker.zig");
 const Compiler = @import("Compiler.zig");
 const Bytecode = @import("Bytecode.zig");
 const Config = @import("Config.zig");
@@ -27,6 +28,10 @@ pub fn main(init: std.process.Init) !void {
     var resolver = Resolver.init();
     defer resolver.deinit(allocator);
     try resolver.resolve(allocator, ast);
+
+    var type_checker = TypeChecker.init();
+    defer type_checker.deinit(allocator);
+    try type_checker.check(allocator, ast);
 
     var compiler = Compiler.init();
     defer compiler.deinit(allocator);

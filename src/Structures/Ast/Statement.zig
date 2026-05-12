@@ -1,5 +1,6 @@
 const std = @import("std");
 const Expression = @import("Expression.zig").Expression;
+const ZType = @import("ZType.zig");
 
 pub const Block = struct {
     statements: []*Statement,
@@ -27,13 +28,13 @@ pub const Statement = union(enum) {
         const node = try allocator.create(Statement);
         node.* = .{ .var_dclr = .{
             .name = name,
-            .type_annotation = type_annotation,
+            .type = if (type_annotation) |a| ZType.fromAnnotation(a) else ZType.unannotated(),
             .is_mutable = true,
             .value = value,
         } };
-
         return node;
     }
+
     pub fn createConst(
         allocator: std.mem.Allocator,
         name: []const u8,
@@ -43,11 +44,10 @@ pub const Statement = union(enum) {
         const node = try allocator.create(Statement);
         node.* = .{ .var_dclr = .{
             .name = name,
-            .type_annotation = type_annotation,
+            .type = if (type_annotation) |a| ZType.fromAnnotation(a) else ZType.unannotated(),
             .is_mutable = false,
             .value = value,
         } };
-
         return node;
     }
 
@@ -75,6 +75,7 @@ pub const Statement = union(enum) {
         } };
         return node;
     }
+
     pub fn createWhile(allocator: std.mem.Allocator, condition: *Expression, then_branch: Block) !*Statement {
         const node = try allocator.create(Statement);
         node.* = .{ .while_stmt = .{
@@ -111,7 +112,7 @@ pub const Statement = union(enum) {
 
 pub const VarDeclr = struct {
     name: []const u8,
-    type_annotation: ?[]const u8,
+    type: ZType,
     value: *Expression,
     slot: ?u32 = null,
     is_mutable: bool,
@@ -120,6 +121,7 @@ pub const VarDeclr = struct {
         self.value.deinit(allocator);
     }
 };
+
 pub const AssignStmt = struct {
     name: []const u8,
     value: *Expression,
