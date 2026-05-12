@@ -111,7 +111,8 @@ fn parseStatement(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statemen
 }
 
 fn parseConst(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
-    _ = self.lexer.next(); // consume 'const'
+    const kw = self.lexer.next() orelse unreachable;
+    std.debug.assert(kw.token_kind == .Const);
     const ident = self.lexer.next() orelse return unexpectedEof("parseConst (ident)");
     if (ident.token_kind != .Identifier) return expectedIdent("parseConst", ident);
     const colon = self.lexer.next() orelse return unexpectedEof("parseConst (colon)");
@@ -126,7 +127,8 @@ fn parseConst(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
 }
 
 fn parseVar(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
-    _ = self.lexer.next(); // consume 'var'
+    const kw = self.lexer.next() orelse unreachable;
+    std.debug.assert(kw.token_kind == .Var);
     const ident = self.lexer.next() orelse return unexpectedEof("parseVar (ident)");
     if (ident.token_kind != .Identifier) return expectedIdent("parseVar", ident);
     const colon = self.lexer.next() orelse return unexpectedEof("parseVar (colon)");
@@ -141,7 +143,8 @@ fn parseVar(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
 }
 
 fn parseIf(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
-    _ = self.lexer.next(); // consume 'if'
+    const kw = self.lexer.next() orelse unreachable;
+    std.debug.assert(kw.token_kind == .If);
     const pl = self.lexer.next() orelse return unexpectedEof("parseIf (LParen)");
     if (pl.token_kind != .LParen) return unexpected("parseIf (expected '(')", pl);
 
@@ -166,7 +169,8 @@ fn parseIf(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
 }
 
 fn parseWhile(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
-    _ = self.lexer.next(); // consume while
+    const kw = self.lexer.next() orelse unreachable;
+    std.debug.assert(kw.token_kind == .While);
     const lp = self.lexer.next() orelse return unexpectedEof("parseWhile (LParen)");
     if (lp.token_kind != .LParen) return unexpected("parseWhile (expected '(')", lp);
     const condition = try self.parseExpression(allocator);
