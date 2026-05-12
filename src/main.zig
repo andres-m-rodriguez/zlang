@@ -3,6 +3,7 @@ const Lexer = @import("Lexer.zig");
 const Ast = @import("./Structures/Ast.zig");
 const Parser = @import("Parser.zig");
 const Resolver = @import("Resolver.zig");
+const Config = @import("Config.zig");
 const Io = std.Io;
 const Z = @import("Z");
 
@@ -11,7 +12,8 @@ pub fn main(init: std.process.Init) !void {
     var c_buffer: [4096]u8 = undefined;
     var c_writer = std.Io.File.stdout().writer(init.io, &c_buffer);
 
-    var lex = Lexer.init(@embedFile("./Index.txt"));
+    const cfg = try Config.parse(@embedFile("./Index.txt"));
+    var lex = Lexer.init(cfg.rest);
     var parser = Parser.init(&lex);
 
     const ast = try parser.parse(allocator);
