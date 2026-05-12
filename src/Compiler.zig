@@ -4,7 +4,7 @@ const Bytecode = @import("Bytecode.zig");
 const Ast = @import("Structures/Ast.zig");
 const Value = @import("Structures/Ast/Value.zig").Value;
 const ConstantStore = @import("Structures/ConstantStore.zig");
-
+const CompilerState = @import("CompilerState.zig");
 const Self = @This();
 
 pub const Error = error{
@@ -15,11 +15,12 @@ pub const Error = error{
 
 code: std.ArrayList(u8),
 constants: ConstantStore,
-
+state: CompilerState,
 pub fn init() Self {
     return .{
         .code = .empty,
         .constants = ConstantStore.init(),
+        .state = .init(),
     };
 }
 
@@ -31,6 +32,12 @@ pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
 pub fn compile(self: *Self, allocator: std.mem.Allocator, ast: Ast.Block) Error!Bytecode {
     for (ast.statements) |statement| {
         try self.compileStatement(allocator, statement);
+    }
+    if (!self.state.has_return) {
+        const idx = try self.constants.add(allocator, .{ .number = 0 });
+        try self.emitFromOpCode(allocator, .LoadConst);
+        try self.emitByte(allocator, idx);
+        try self.emitFromOpCode(allocator, .Return);
     }
     return .{
         .code = try self.code.toOwnedSlice(allocator),
@@ -45,6 +52,7 @@ fn compileStatement(self: *Self, allocator: std.mem.Allocator, statement: *Ast.S
         .expression_stmt => try self.compileExpression(allocator, statement.expression_stmt),
         .if_stmt => try self.compileIfStmt(allocator, statement),
         .while_stmt => try self.compileWhile(allocator, statement),
+        .return_stmt => try self.compileReturnStmt(allocator, statement),
     }
 }
 
@@ -90,7 +98,14 @@ fn compileWhile(self: *Self, allocator: std.mem.Allocator, statement: *Ast.State
     try self.emitLoop(allocator, loop_start);
     self.patchJump(exit_jump);
 }
-
+fn compileReturnStmt(self: *Self, allocator: std.mem.Allocator, statement: *Ast.Statement) !void {
+    const ret = statement.return_stmt;
+    if (ret.value) |v| {
+        try self.compileExpression(allocator, v);
+    }
+    try self.emitFromOpCode(allocator, .Return);
+    self.state.has_return = true;
+}
 fn emitLoop(self: *Self, allocator: std.mem.Allocator, loop_start: usize) Error!void {
     try self.emitFromOpCode(allocator, .Loop);
     const after = self.code.items.len + 2;

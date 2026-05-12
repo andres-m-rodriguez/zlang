@@ -23,51 +23,6 @@ pub fn init(lexer: *Lexer) Self {
     return .{ .lexer = lexer };
 }
 
-fn unexpected(ctx: []const u8, tok: LexerToken) Error {
-    std.debug.print(
-        "[parser] {s}: unexpected token kind={s} value=\"{s}\"\n",
-        .{ ctx, @tagName(tok.token_kind), tok.value },
-    );
-    return Error.UnexpectedToken;
-}
-
-fn unexpectedEof(ctx: []const u8) Error {
-    std.debug.print("[parser] {s}: unexpected EOF\n", .{ctx});
-    return Error.UnexpectedEof;
-}
-
-fn expectedIdent(ctx: []const u8, tok: LexerToken) Error {
-    std.debug.print(
-        "[parser] {s}: expected identifier, got kind={s} value=\"{s}\"\n",
-        .{ ctx, @tagName(tok.token_kind), tok.value },
-    );
-    return Error.ExpectedIdentifier;
-}
-
-fn expectedEquals(ctx: []const u8, tok: LexerToken) Error {
-    std.debug.print(
-        "[parser] {s}: expected '=', got kind={s} value=\"{s}\"\n",
-        .{ ctx, @tagName(tok.token_kind), tok.value },
-    );
-    return Error.ExpectedEquals;
-}
-
-fn expectedLBrace(ctx: []const u8, tok: LexerToken) Error {
-    std.debug.print(
-        "[parser] {s}: expected '{{', got kind={s} value=\"{s}\"\n",
-        .{ ctx, @tagName(tok.token_kind), tok.value },
-    );
-    return Error.ExpectedLBrace;
-}
-
-fn expectedRBrace(ctx: []const u8, tok: LexerToken) Error {
-    std.debug.print(
-        "[parser] {s}: expected '}}', got kind={s} value=\"{s}\"\n",
-        .{ ctx, @tagName(tok.token_kind), tok.value },
-    );
-    return Error.ExpectedRBrace;
-}
-
 pub fn parse(self: *Self, allocator: std.mem.Allocator) Error!Ast.Block {
     var statments: std.ArrayList(*Ast.Statement) = .empty;
     errdefer {
@@ -88,6 +43,7 @@ fn parseStatement(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statemen
         .Const => return self.parseConst(allocator),
         .If => return self.parseIf(allocator),
         .While => return self.parseWhile(allocator),
+        .Return => return self.parseReturn(allocator),
         else => {},
     }
     const expr = try self.parseExpression(allocator);
@@ -182,7 +138,24 @@ fn parseWhile(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
 
     return Ast.Statement.createWhile(allocator, condition, then_branch);
 }
+fn parseReturn(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
+    _ = self.lexer.next(); // consume 'return'
 
+    const value: ?*Ast.Expression = if (self.hasReturnValue())
+        try self.parseExpression(allocator)
+    else
+        null;
+
+    return Ast.Statement.createReturn(allocator, value);
+}
+
+fn hasReturnValue(self: *Self) bool {
+    const tok = self.lexer.peek() orelse return false;
+    return switch (tok.token_kind) {
+        .Var, .Const, .If, .While, .Return, .RBrace => false,
+        else => true,
+    };
+}
 fn parseBlock(self: *Self, allocator: std.mem.Allocator) Error!Ast.Block {
     const lbrace = self.lexer.next() orelse return unexpectedEof("parseBlock (LBrace)");
     if (lbrace.token_kind != .LBrace) return expectedLBrace("parseBlock", lbrace);
@@ -300,6 +273,51 @@ fn parseGrouping(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expressio
     const rparen = self.lexer.next() orelse return unexpectedEof("parseGrouping");
     if (rparen.token_kind != .RParen) return unexpected("parseGrouping (expected ')')", rparen);
     return try Ast.Expression.createGrouping(allocator, inner);
+}
+
+fn unexpected(ctx: []const u8, tok: LexerToken) Error {
+    std.debug.print(
+        "[parser] {s}: unexpected token kind={s} value=\"{s}\"\n",
+        .{ ctx, @tagName(tok.token_kind), tok.value },
+    );
+    return Error.UnexpectedToken;
+}
+
+fn unexpectedEof(ctx: []const u8) Error {
+    std.debug.print("[parser] {s}: unexpected EOF\n", .{ctx});
+    return Error.UnexpectedEof;
+}
+
+fn expectedIdent(ctx: []const u8, tok: LexerToken) Error {
+    std.debug.print(
+        "[parser] {s}: expected identifier, got kind={s} value=\"{s}\"\n",
+        .{ ctx, @tagName(tok.token_kind), tok.value },
+    );
+    return Error.ExpectedIdentifier;
+}
+
+fn expectedEquals(ctx: []const u8, tok: LexerToken) Error {
+    std.debug.print(
+        "[parser] {s}: expected '=', got kind={s} value=\"{s}\"\n",
+        .{ ctx, @tagName(tok.token_kind), tok.value },
+    );
+    return Error.ExpectedEquals;
+}
+
+fn expectedLBrace(ctx: []const u8, tok: LexerToken) Error {
+    std.debug.print(
+        "[parser] {s}: expected '{{', got kind={s} value=\"{s}\"\n",
+        .{ ctx, @tagName(tok.token_kind), tok.value },
+    );
+    return Error.ExpectedLBrace;
+}
+
+fn expectedRBrace(ctx: []const u8, tok: LexerToken) Error {
+    std.debug.print(
+        "[parser] {s}: expected '}}', got kind={s} value=\"{s}\"\n",
+        .{ ctx, @tagName(tok.token_kind), tok.value },
+    );
+    return Error.ExpectedRBrace;
 }
 
 const testing = std.testing;

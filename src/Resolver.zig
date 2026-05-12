@@ -14,6 +14,9 @@ pub fn init() Self {
 pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
     self.env.deinit(allocator);
 }
+pub fn maxSlots(self: *const Self) u32 {
+    return self.env.slots.max_slots;
+}
 pub fn resolve(self: *Self, allocator: std.mem.Allocator, ast: Ast.Block) Error!void {
     try self.env.beginScope(allocator);
     defer self.env.endScope(allocator);
@@ -29,6 +32,7 @@ fn resolveStatment(self: *Self, allocator: std.mem.Allocator, statement: *Ast.St
         .if_stmt => try self.resolveIfStmt(allocator, statement),
         .while_stmt => try self.resolveWhileStmt(allocator, statement),
         .expression_stmt => try self.resolveExpression(statement.expression_stmt),
+        .return_stmt => |r| if (r.value) |v| try self.resolveExpression(v),
     }
 }
 fn resolveVarDeclr(self: *Self, allocator: std.mem.Allocator, statement: *Ast.Statement) Error!void {

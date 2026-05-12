@@ -15,6 +15,7 @@ pub const Statement = union(enum) {
     assign_stmt: AssignStmt,
     if_stmt: IfStmt,
     while_stmt: WhileStmt,
+    return_stmt: ReturnStmt,
     expression_stmt: *Expression,
 
     pub fn createVar(
@@ -83,6 +84,12 @@ pub const Statement = union(enum) {
         return node;
     }
 
+    pub fn createReturn(allocator: std.mem.Allocator, value: ?*Expression) !*Statement {
+        const node = try allocator.create(Statement);
+        node.* = .{ .return_stmt = .{ .value = value } };
+        return node;
+    }
+
     pub fn createExpression(allocator: std.mem.Allocator, expr: *Expression) !*Statement {
         const node = try allocator.create(Statement);
         node.* = .{ .expression_stmt = expr };
@@ -95,6 +102,7 @@ pub const Statement = union(enum) {
             .if_stmt => |i| i.deinit(allocator),
             .while_stmt => |w| w.deinit(allocator),
             .assign_stmt => |a| a.deinit(allocator),
+            .return_stmt => |r| r.deinit(allocator),
             .expression_stmt => |e| e.deinit(allocator),
         }
         allocator.destroy(self);
@@ -119,6 +127,15 @@ pub const AssignStmt = struct {
 
     pub fn deinit(self: AssignStmt, allocator: std.mem.Allocator) void {
         self.value.deinit(allocator);
+    }
+};
+
+pub const ReturnStmt = struct {
+    value: ?*Expression,
+
+    pub fn deinit(self: ReturnStmt, allocator: std.mem.Allocator) void {
+        if (self.value) |v|
+            v.deinit(allocator);
     }
 };
 
