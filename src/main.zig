@@ -1,6 +1,6 @@
 const std = @import("std");
 const Lexer = @import("Lexer.zig");
-const Ast = @import("./Structures/Ast.zig");
+const Ast = @import("Structures/Ast.zig");
 const Parser = @import("Parser.zig");
 const Resolver = @import("Resolver.zig");
 const Compiler = @import("Compiler.zig");

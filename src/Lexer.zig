@@ -1,5 +1,5 @@
 const std = @import("std");
-const LexerToken = @import("./LexerToken.zig");
+const LexerToken = @import("LexerToken.zig");
 const TokenKind = LexerToken.TokenKind;
 const ascii = std.ascii;
 
@@ -144,4 +144,41 @@ fn keywordKind(value: []const u8) ?TokenKind {
     if (std.mem.eql(u8, value, "true")) return .True;
     if (std.mem.eql(u8, value, "false")) return .False;
     return null;
+}
+
+const testing = std.testing;
+
+test "lexer: numbers and single-char operator" {
+    var lex = init("1 + 2");
+    const a = lex.next().?;
+    try testing.expectEqual(TokenKind.Number, a.token_kind);
+    try testing.expectEqualStrings("1", a.value);
+
+    const op = lex.next().?;
+    try testing.expectEqual(TokenKind.Plus, op.token_kind);
+
+    const b = lex.next().?;
+    try testing.expectEqual(TokenKind.Number, b.token_kind);
+    try testing.expectEqualStrings("2", b.value);
+
+    try testing.expect(lex.next() == null);
+}
+
+test "lexer: keyword vs identifier" {
+    var lex = init("var name");
+    const kw = lex.next().?;
+    try testing.expectEqual(TokenKind.Var, kw.token_kind);
+
+    const ident = lex.next().?;
+    try testing.expectEqual(TokenKind.Identifier, ident.token_kind);
+    try testing.expectEqualStrings("name", ident.value);
+}
+
+test "lexer: two-char operators not split" {
+    var lex = init("== != <= >=");
+    try testing.expectEqual(TokenKind.EqualEqual, lex.next().?.token_kind);
+    try testing.expectEqual(TokenKind.BangEqual, lex.next().?.token_kind);
+    try testing.expectEqual(TokenKind.LessEqual, lex.next().?.token_kind);
+    try testing.expectEqual(TokenKind.GreaterEqual, lex.next().?.token_kind);
+    try testing.expect(lex.next() == null);
 }

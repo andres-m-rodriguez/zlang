@@ -35,8 +35,8 @@ pub fn endScope(self: *Self, allocator: std.mem.Allocator) void {
 
 pub fn declare(self: *Self, allocator: std.mem.Allocator, name: []const u8, is_mutable: bool) !u16 {
     const slot = self.slots.allocate();
-    const currentScope = self.getCurrentScope();
-    try currentScope.declare(allocator, name, is_mutable, slot);
+    const current_scope = self.getCurrentScope();
+    try current_scope.declare(allocator, name, is_mutable, slot);
     return slot;
 }
 pub fn getCurrentScope(self: *Self) *Scope {
@@ -45,8 +45,8 @@ pub fn getCurrentScope(self: *Self) *Scope {
 }
 
 pub fn define(self: *Self, name: []const u8) !void {
-    const currentScope = self.getCurrentScope();
-    try currentScope.define(name);
+    const current_scope = self.getCurrentScope();
+    try current_scope.define(name);
 }
 pub fn resolve(self: *Self, name: []const u8) ?ResolveResult {
     var it = std.mem.reverseIterator(self.scopes.items);

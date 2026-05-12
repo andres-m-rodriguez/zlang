@@ -25,10 +25,10 @@ pub fn resolve(self: *Self, allocator: std.mem.Allocator, ast: []*Ast.Statement)
 fn resolveStatment(self: *Self, allocator: std.mem.Allocator, statement: *Ast.Statement) Error!void {
     switch (statement.*) {
         .var_dclr => try self.resolveVarDeclr(allocator, statement),
-        .assign => try self.resolveAssign(statement),
+        .assign_stmt => try self.resolveAssign(statement),
         .if_stmt => try self.resolveIfStmt(allocator, statement),
         .while_stmt => try self.resolveWhileStmt(allocator, statement),
-        .expression => try self.resolveExpression(statement.expression),
+        .expression_stmt => try self.resolveExpression(statement.expression_stmt),
     }
 }
 fn resolveVarDeclr(self: *Self, allocator: std.mem.Allocator, statement: *Ast.Statement) Error!void {
@@ -39,7 +39,7 @@ fn resolveVarDeclr(self: *Self, allocator: std.mem.Allocator, statement: *Ast.St
     try self.env.define(var_dclr.name);
 }
 fn resolveAssign(self: *Self, statement: *Ast.Statement) Error!void {
-    const assign = &statement.assign;
+    const assign = &statement.assign_stmt;
     try self.resolveExpression(assign.value);
     const result = self.env.resolve(assign.name) orelse {
         return Error.UndeclaredVariable;

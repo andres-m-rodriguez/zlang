@@ -4,6 +4,10 @@ const ValueContext = @import("Ast.zig").ValueContext;
 
 const Self = @This();
 
+pub const Error = error{
+    TooManyConstants,
+} || std.mem.Allocator.Error;
+
 constants: std.ArrayList(Value),
 indices: std.HashMapUnmanaged(Value, u8, ValueContext, 80),
 
@@ -19,13 +23,13 @@ pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
     self.indices.deinit(allocator);
 }
 
-pub fn add(self: *Self, allocator: std.mem.Allocator, value: Value) !u8 {
+pub fn add(self: *Self, allocator: std.mem.Allocator, value: Value) Error!u8 {
     const result = try self.indices.getOrPut(allocator, value);
     if (result.found_existing) {
         return result.value_ptr.*;
     }
     if (self.constants.items.len >= std.math.maxInt(u8)) {
-        return error.TooManyConstants;
+        return Error.TooManyConstants;
     }
     const idx: u8 = @intCast(self.constants.items.len);
     try self.constants.append(allocator, value);

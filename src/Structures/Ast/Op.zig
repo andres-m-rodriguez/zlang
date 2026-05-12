@@ -1,16 +1,16 @@
 pub const BinOp = enum {
-    add,
-    sub,
-    mul,
-    div,
-    eq,
-    neq,
-    lt,
-    lte,
-    gt,
-    gte,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Eq,
+    Neq,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
 };
 
 pub const UnaryOp = enum {
-    negate,
+    Negate,
 };

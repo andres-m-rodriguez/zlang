@@ -3,10 +3,10 @@ const Expression = @import("Expression.zig").Expression;
 
 pub const Statement = union(enum) {
     var_dclr: VarDeclr,
-    assign: AssignStmt,
+    assign_stmt: AssignStmt,
     if_stmt: IfStmt,
     while_stmt: WhileStmt,
-    expression: *Expression,
+    expression_stmt: *Expression,
 
     pub fn createVar(
         allocator: std.mem.Allocator,
@@ -47,7 +47,7 @@ pub const Statement = union(enum) {
         value: *Expression,
     ) !*Statement {
         const node = try allocator.create(Statement);
-        node.* = .{ .assign = .{ .name = name, .value = value } };
+        node.* = .{ .assign_stmt = .{ .name = name, .value = value } };
         return node;
     }
 
@@ -76,7 +76,7 @@ pub const Statement = union(enum) {
 
     pub fn createExpression(allocator: std.mem.Allocator, expr: *Expression) !*Statement {
         const node = try allocator.create(Statement);
-        node.* = .{ .expression = expr };
+        node.* = .{ .expression_stmt = expr };
         return node;
     }
 
@@ -85,8 +85,8 @@ pub const Statement = union(enum) {
             .var_dclr => |l| l.deinit(allocator),
             .if_stmt => |i| i.deinit(allocator),
             .while_stmt => |w| w.deinit(allocator),
-            .assign => |a| a.deinit(allocator),
-            .expression => |e| e.deinit(allocator),
+            .assign_stmt => |a| a.deinit(allocator),
+            .expression_stmt => |e| e.deinit(allocator),
         }
         allocator.destroy(self);
     }

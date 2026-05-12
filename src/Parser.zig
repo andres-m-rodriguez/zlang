@@ -1,7 +1,7 @@
 const std = @import("std");
 const Lexer = @import("Lexer.zig");
 const LexerToken = @import("LexerToken.zig");
-const Ast = @import("./Structures/Ast.zig");
+const Ast = @import("Structures/Ast.zig");
 
 const Self = @This();
 lexer: *Lexer,
@@ -218,8 +218,8 @@ fn parseEquality(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expressio
     var left = try self.parseComparison(allocator);
     while (self.lexer.peek()) |tok| {
         const op: Ast.BinOp = switch (tok.token_kind) {
-            .EqualEqual => .eq,
-            .BangEqual => .neq,
+            .EqualEqual => .Eq,
+            .BangEqual => .Neq,
             else => break,
         };
         _ = self.lexer.next();
@@ -233,10 +233,10 @@ fn parseComparison(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Express
     var left = try self.parseAdditive(allocator);
     while (self.lexer.peek()) |tok| {
         const op: Ast.BinOp = switch (tok.token_kind) {
-            .Greater => .gt,
-            .GreaterEqual => .gte,
-            .Less => .lt,
-            .LessEqual => .lte,
+            .Greater => .Gt,
+            .GreaterEqual => .Gte,
+            .Less => .Lt,
+            .LessEqual => .Lte,
             else => break,
         };
         _ = self.lexer.next();
@@ -250,8 +250,8 @@ fn parseAdditive(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expressio
     var left = try self.parseMultiplicative(allocator);
     while (self.lexer.peek()) |tok| {
         const op: Ast.BinOp = switch (tok.token_kind) {
-            .Plus => .add,
-            .Minus => .sub,
+            .Plus => .Add,
+            .Minus => .Sub,
             else => break,
         };
         _ = self.lexer.next();
@@ -265,8 +265,8 @@ fn parseMultiplicative(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Exp
     var left = try self.parseUnary(allocator);
     while (self.lexer.peek()) |tok| {
         const op: Ast.BinOp = switch (tok.token_kind) {
-            .Star => .mul,
-            .Slash => .div,
+            .Star => .Mul,
+            .Slash => .Div,
             else => break,
         };
         _ = self.lexer.next();
@@ -281,7 +281,7 @@ fn parseUnary(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
         if (tok.token_kind == .Minus) {
             _ = self.lexer.next();
             const operand = try self.parseUnary(allocator);
-            return try Ast.Expression.createUnary(allocator, .negate, operand);
+            return try Ast.Expression.createUnary(allocator, .Negate, operand);
         }
     }
     return self.parsePrimary(allocator);
@@ -305,4 +305,59 @@ fn parseGrouping(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expressio
     const rparen = self.lexer.next() orelse return unexpectedEof("parseGrouping");
     if (rparen.token_kind != .RParen) return unexpected("parseGrouping (expected ')')", rparen);
     return try Ast.Expression.createGrouping(allocator, inner);
+}
+
+const testing = std.testing;
+
+fn parseFromSource(allocator: std.mem.Allocator, source: []const u8) Error![]*Ast.Statement {
+    var lex = Lexer.init(source);
+    var parser = init(&lex);
+    return parser.parse(allocator);
+}
+
+fn freeAst(allocator: std.mem.Allocator, stmts: []*Ast.Statement) void {
+    for (stmts) |s| s.deinit(allocator);
+    allocator.free(stmts);
+}
+
+test "parser: var declaration with type and initializer" {
+    const allocator = testing.allocator;
+    const stmts = try parseFromSource(allocator, "var x : i32 = 42");
+    defer freeAst(allocator, stmts);
+
+    try testing.expectEqual(@as(usize, 1), stmts.len);
+    const var_dclr = stmts[0].var_dclr;
+    try testing.expectEqualStrings("x", var_dclr.name);
+    try testing.expect(var_dclr.is_mutable);
+    try testing.expectEqualStrings("i32", var_dclr.type_annotation.?);
+    try testing.expectEqual(@as(f64, 42), var_dclr.value.literal.number);
+}
+
+test "parser: expression precedence binds * tighter than +" {
+    const allocator = testing.allocator;
+    const stmts = try parseFromSource(allocator, "1 + 2 * 3");
+    defer freeAst(allocator, stmts);
+
+    try testing.expectEqual(@as(usize, 1), stmts.len);
+    const expr = stmts[0].expression_stmt;
+    try testing.expectEqual(Ast.BinOp.Add, expr.binary.op);
+    try testing.expectEqual(@as(f64, 1), expr.binary.left.literal.number);
+    try testing.expectEqual(Ast.BinOp.Mul, expr.binary.right.binary.op);
+    try testing.expectEqual(@as(f64, 2), expr.binary.right.binary.left.literal.number);
+    try testing.expectEqual(@as(f64, 3), expr.binary.right.binary.right.literal.number);
+}
+
+test "parser: if/else parses both branches" {
+    const allocator = testing.allocator;
+    const stmts = try parseFromSource(allocator, "if (true) { 1 } else { 2 }");
+    defer freeAst(allocator, stmts);
+
+    try testing.expectEqual(@as(usize, 1), stmts.len);
+    const if_stmt = stmts[0].if_stmt;
+    try testing.expect(if_stmt.condition.literal.boolean);
+    try testing.expectEqual(@as(usize, 1), if_stmt.then_branch.len);
+    try testing.expect(if_stmt.else_branch != null);
+    try testing.expectEqual(@as(usize, 1), if_stmt.else_branch.?.len);
+    try testing.expectEqual(@as(f64, 1), if_stmt.then_branch[0].expression_stmt.literal.number);
+    try testing.expectEqual(@as(f64, 2), if_stmt.else_branch.?[0].expression_stmt.literal.number);
 }

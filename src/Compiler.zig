@@ -1,16 +1,17 @@
 const std = @import("std");
-const Value = @import("Structures/Ast/Value.zig").Value;
-const ConstantStore = @import("Structures/ConstantStore.zig");
+
 const Bytecode = @import("Bytecode.zig");
 const Ast = @import("Structures/Ast.zig");
+const Value = @import("Structures/Ast/Value.zig").Value;
+const ConstantStore = @import("Structures/ConstantStore.zig");
+
 const Self = @This();
 
 pub const Error = error{
     UnresolvedDeclaration,
     UnresolvedAssignment,
     UnresolvedIdentifier,
-    TooManyConstants,
-} || std.mem.Allocator.Error;
+} || ConstantStore.Error;
 
 code: std.ArrayList(u8),
 constants: ConstantStore,
@@ -40,8 +41,8 @@ pub fn compile(self: *Self, allocator: std.mem.Allocator, ast: []*Ast.Statement)
 fn compileStatement(self: *Self, allocator: std.mem.Allocator, statement: *Ast.Statement) Error!void {
     switch (statement.*) {
         .var_dclr => try self.compileVarDeclr(allocator, statement),
-        .assign => try self.compileAssign(allocator, statement),
-        .expression => try self.compileExpression(allocator, statement.expression),
+        .assign_stmt => try self.compileAssign(allocator, statement),
+        .expression_stmt => try self.compileExpression(allocator, statement.expression_stmt),
         .if_stmt => try self.compileIfStmt(allocator, statement),
         .while_stmt => try self.compileWhile(allocator, statement),
     }
@@ -50,15 +51,15 @@ fn compileStatement(self: *Self, allocator: std.mem.Allocator, statement: *Ast.S
 fn compileVarDeclr(self: *Self, allocator: std.mem.Allocator, statement: *Ast.Statement) Error!void {
     const var_dclr = statement.var_dclr;
     try self.compileExpression(allocator, var_dclr.value);
-    const slot = var_dclr.slot orelse return error.UnresolvedDeclaration;
+    const slot = var_dclr.slot orelse return Error.UnresolvedDeclaration;
     try self.emitFromOpCode(allocator, .StoreLocal);
     try self.emitU32(allocator, slot);
 }
 
 fn compileAssign(self: *Self, allocator: std.mem.Allocator, statement: *Ast.Statement) Error!void {
-    const assign = statement.assign;
+    const assign = statement.assign_stmt;
     try self.compileExpression(allocator, assign.value);
-    const slot = assign.slot orelse return error.UnresolvedAssignment;
+    const slot = assign.slot orelse return Error.UnresolvedAssignment;
     try self.emitFromOpCode(allocator, .StoreLocal);
     try self.emitU32(allocator, slot);
 }
@@ -153,7 +154,7 @@ fn compileExpression(self: *Self, allocator: std.mem.Allocator, expr: *Ast.Expre
         },
 
         .identifier => |ident| {
-            const slot = ident.slot orelse return error.UnresolvedIdentifier;
+            const slot = ident.slot orelse return Error.UnresolvedIdentifier;
             try self.emitFromOpCode(allocator, .LoadLocal);
             try self.emitU32(allocator, slot);
         },
@@ -162,16 +163,16 @@ fn compileExpression(self: *Self, allocator: std.mem.Allocator, expr: *Ast.Expre
             try self.compileExpression(allocator, b.left);
             try self.compileExpression(allocator, b.right);
             const op: Bytecode.Opcode = switch (b.op) {
-                .add => .Add,
-                .sub => .Sub,
-                .mul => .Mul,
-                .div => .Div,
-                .eq => .Eq,
-                .neq => .Neq,
-                .lt => .Lt,
-                .lte => .Lte,
-                .gt => .Gt,
-                .gte => .Gte,
+                .Add => .Add,
+                .Sub => .Sub,
+                .Mul => .Mul,
+                .Div => .Div,
+                .Eq => .Eq,
+                .Neq => .Neq,
+                .Lt => .Lt,
+                .Lte => .Lte,
+                .Gt => .Gt,
+                .Gte => .Gte,
             };
             try self.emitFromOpCode(allocator, op);
         },
@@ -179,7 +180,7 @@ fn compileExpression(self: *Self, allocator: std.mem.Allocator, expr: *Ast.Expre
         .unary => |u| {
             try self.compileExpression(allocator, u.operand);
             const op: Bytecode.Opcode = switch (u.op) {
-                .negate => .Neg,
+                .Negate => .Neg,
             };
             try self.emitFromOpCode(allocator, op);
         },
