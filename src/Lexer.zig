@@ -27,7 +27,6 @@ pub fn next(self: *Self) ?LexerToken {
 pub fn scan(self: *Self) ?LexerToken {
     self.skipTrivia();
     if (self.cursor >= self.source.len) return null;
-
     const c = self.source[self.cursor];
 
     if (parseDigit(self.source[self.cursor..])) |numberToken| {

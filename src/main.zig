@@ -6,6 +6,7 @@ const Resolver = @import("Resolver.zig");
 const TypeChecker = @import("TypeChecker.zig");
 const Compiler = @import("Compiler.zig");
 const Bytecode = @import("Bytecode.zig");
+const VirtualMachine = @import("VirtualMachine.zig");
 const Config = @import("Config.zig");
 const Z = @import("Z");
 
@@ -39,6 +40,31 @@ pub fn main(init: std.process.Init) !void {
     defer bytecode.deinit(allocator);
 
     try dumpBytecode(writer, &bytecode);
+    try writer.writeAll("=== running ===\n");
+    try writer.flush();
+
+    var virtual_machine = try VirtualMachine.init(
+        allocator,
+        cfg.stack_size,
+        resolver.maxSlots(),
+        bytecode.constants,
+    );
+    defer virtual_machine.deinit(allocator);
+
+    const result = try virtual_machine.run(bytecode);
+
+    try writer.writeAll("=== locals after run ===\n");
+    for (virtual_machine.locals, 0..) |value, i| {
+        try writer.print("  [{d}] {any}\n", .{ i, value });
+    }
+
+    try writer.writeAll("=== result ===\n");
+    if (result) |v| {
+        try writer.print("  {any}\n", .{v});
+    } else {
+        try writer.writeAll("  (none)\n");
+    }
+
     try writer.flush();
 }
 
@@ -47,13 +73,11 @@ fn dumpBytecode(writer: *std.Io.Writer, bc: *const Bytecode) !void {
     for (bc.constants, 0..) |value, i| {
         try writer.print("  [{d}] {any}\n", .{ i, value });
     }
-
     try writer.writeAll("=== code ===\n");
     var pc: u32 = 0;
     while (pc < bc.code.len) {
         const op = bc.readOpcode(pc);
         try writer.print("  {x:0>4}  {s}", .{ pc, @tagName(op) });
-
         const size = Bytecode.operandSize(op);
         switch (size) {
             0 => {},
@@ -62,9 +86,7 @@ fn dumpBytecode(writer: *std.Io.Writer, bc: *const Bytecode) !void {
             4 => try writer.print(" {d}", .{bc.readU32(pc + 1)}),
             else => unreachable,
         }
-
         try writer.writeAll("\n");
         pc += 1 + size;
     }
 }
-
