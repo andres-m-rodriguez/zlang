@@ -14,10 +14,10 @@ pub fn init() Self {
 pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
     self.env.deinit(allocator);
 }
-pub fn resolve(self: *Self, allocator: std.mem.Allocator, ast: []*Ast.Statement) Error!void {
+pub fn resolve(self: *Self, allocator: std.mem.Allocator, ast: Ast.Block) Error!void {
     try self.env.beginScope(allocator);
     defer self.env.endScope(allocator);
-    for (ast) |statment| {
+    for (ast.statements) |statment| {
         try self.resolveStatment(allocator, statment);
     }
 }
@@ -60,10 +60,10 @@ fn resolveWhileStmt(self: *Self, allocator: std.mem.Allocator, statement: *Ast.S
     try self.resolveExpression(while_stmt.condition);
     try self.resolveBlock(allocator, while_stmt.then_branch);
 }
-fn resolveBlock(self: *Self, allocator: std.mem.Allocator, block: []*Ast.Statement) Error!void {
+fn resolveBlock(self: *Self, allocator: std.mem.Allocator, block: Ast.Block) Error!void {
     try self.env.beginScope(allocator);
     defer self.env.endScope(allocator);
-    for (block) |statment| {
+    for (block.statements) |statment| {
         try self.resolveStatment(allocator, statment);
     }
 }

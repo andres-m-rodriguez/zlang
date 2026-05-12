@@ -4,6 +4,7 @@ const value_mod = @import("Ast/Value.zig");
 const op_mod = @import("Ast/Op.zig");
 
 pub const Statement = statement_mod.Statement;
+pub const Block = statement_mod.Block;
 pub const VarDeclr = statement_mod.VarDeclr;
 pub const IfStmt = statement_mod.IfStmt;
 pub const AssignStmt = statement_mod.AssignStmt;

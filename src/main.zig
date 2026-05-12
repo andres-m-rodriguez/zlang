@@ -22,10 +22,7 @@ pub fn main(init: std.process.Init) !void {
     var parser = Parser.init(&lex);
 
     const ast = try parser.parse(allocator);
-    defer {
-        for (ast) |stmt| stmt.deinit(allocator);
-        allocator.free(ast);
-    }
+    defer ast.deinit(allocator);
 
     var resolver = Resolver.init();
     defer resolver.deinit(allocator);

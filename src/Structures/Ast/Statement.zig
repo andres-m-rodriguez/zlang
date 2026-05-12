@@ -1,6 +1,15 @@
 const std = @import("std");
 const Expression = @import("Expression.zig").Expression;
 
+pub const Block = struct {
+    statements: []*Statement,
+
+    pub fn deinit(self: Block, allocator: std.mem.Allocator) void {
+        for (self.statements) |s| s.deinit(allocator);
+        allocator.free(self.statements);
+    }
+};
+
 pub const Statement = union(enum) {
     var_dclr: VarDeclr,
     assign_stmt: AssignStmt,
@@ -54,8 +63,8 @@ pub const Statement = union(enum) {
     pub fn createIf(
         allocator: std.mem.Allocator,
         condition: *Expression,
-        then_branch: []*Statement,
-        else_branch: ?[]*Statement,
+        then_branch: Block,
+        else_branch: ?Block,
     ) !*Statement {
         const node = try allocator.create(Statement);
         node.* = .{ .if_stmt = .{
@@ -65,7 +74,7 @@ pub const Statement = union(enum) {
         } };
         return node;
     }
-    pub fn createWhile(allocator: std.mem.Allocator, condition: *Expression, then_branch: []*Statement) !*Statement {
+    pub fn createWhile(allocator: std.mem.Allocator, condition: *Expression, then_branch: Block) !*Statement {
         const node = try allocator.create(Statement);
         node.* = .{ .while_stmt = .{
             .condition = condition,
@@ -115,30 +124,22 @@ pub const AssignStmt = struct {
 
 pub const IfStmt = struct {
     condition: *Expression,
-    then_branch: []*Statement,
-    else_branch: ?[]*Statement,
+    then_branch: Block,
+    else_branch: ?Block,
 
     pub fn deinit(self: IfStmt, allocator: std.mem.Allocator) void {
         self.condition.deinit(allocator);
-
-        for (self.then_branch) |s| s.deinit(allocator);
-        allocator.free(self.then_branch);
-
-        if (self.else_branch) |branch| {
-            for (branch) |s| s.deinit(allocator);
-            allocator.free(branch);
-        }
+        self.then_branch.deinit(allocator);
+        if (self.else_branch) |branch| branch.deinit(allocator);
     }
 };
 
 pub const WhileStmt = struct {
     condition: *Expression,
-    then_branch: []*Statement,
+    then_branch: Block,
 
     pub fn deinit(self: WhileStmt, allocator: std.mem.Allocator) void {
         self.condition.deinit(allocator);
-
-        for (self.then_branch) |s| s.deinit(allocator);
-        allocator.free(self.then_branch);
+        self.then_branch.deinit(allocator);
     }
 };

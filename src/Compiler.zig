@@ -28,8 +28,8 @@ pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
     self.constants.deinit(allocator);
 }
 
-pub fn compile(self: *Self, allocator: std.mem.Allocator, ast: []*Ast.Statement) Error!Bytecode {
-    for (ast) |statement| {
+pub fn compile(self: *Self, allocator: std.mem.Allocator, ast: Ast.Block) Error!Bytecode {
+    for (ast.statements) |statement| {
         try self.compileStatement(allocator, statement);
     }
     return .{
@@ -98,8 +98,8 @@ fn emitLoop(self: *Self, allocator: std.mem.Allocator, loop_start: usize) Error!
     try self.emitU16(allocator, offset);
 }
 
-fn compileBlock(self: *Self, allocator: std.mem.Allocator, block: []*Ast.Statement) Error!void {
-    for (block) |statement| {
+fn compileBlock(self: *Self, allocator: std.mem.Allocator, block: Ast.Block) Error!void {
+    for (block.statements) |statement| {
         try self.compileStatement(allocator, statement);
     }
 }

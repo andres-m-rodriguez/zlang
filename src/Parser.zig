@@ -68,7 +68,7 @@ fn expectedRBrace(ctx: []const u8, tok: LexerToken) Error {
     return Error.ExpectedRBrace;
 }
 
-pub fn parse(self: *Self, allocator: std.mem.Allocator) Error![]*Ast.Statement {
+pub fn parse(self: *Self, allocator: std.mem.Allocator) Error!Ast.Block {
     var statments: std.ArrayList(*Ast.Statement) = .empty;
     errdefer {
         for (statments.items) |s| s.deinit(allocator);
@@ -78,7 +78,7 @@ pub fn parse(self: *Self, allocator: std.mem.Allocator) Error![]*Ast.Statement {
         const stmt = try self.parseStatement(allocator);
         try statments.append(allocator, stmt);
     }
-    return try statments.toOwnedSlice(allocator);
+    return .{ .statements = try statments.toOwnedSlice(allocator) };
 }
 
 fn parseStatement(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
@@ -151,22 +151,16 @@ fn parseIf(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
     if (pr.token_kind != .RParen) return unexpected("parseIf (expected ')')", pr);
 
     const then_branch = try self.parseBlock(allocator);
-    errdefer {
-        for (then_branch) |s| s.deinit(allocator);
-        allocator.free(then_branch);
-    }
+    errdefer then_branch.deinit(allocator);
 
-    var else_branch: ?[]*Ast.Statement = null;
+    var else_branch: ?Ast.Block = null;
     if (self.lexer.peek()) |tok| {
         if (tok.token_kind == .Else) {
             _ = self.lexer.next();
             else_branch = try self.parseBlock(allocator);
         }
     }
-    errdefer if (else_branch) |branch| {
-        for (branch) |s| s.deinit(allocator);
-        allocator.free(branch);
-    };
+    errdefer if (else_branch) |branch| branch.deinit(allocator);
 
     return Ast.Statement.createIf(allocator, condition, then_branch, else_branch);
 }
@@ -180,15 +174,12 @@ fn parseWhile(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
     const rp = self.lexer.next() orelse return unexpectedEof("parseWhile (RParen)");
     if (rp.token_kind != .RParen) return unexpected("parseWhile (expected ')')", rp);
     const then_branch = try self.parseBlock(allocator);
-    errdefer {
-        for (then_branch) |s| s.deinit(allocator);
-        allocator.free(then_branch);
-    }
+    errdefer then_branch.deinit(allocator);
 
     return Ast.Statement.createWhile(allocator, condition, then_branch);
 }
 
-fn parseBlock(self: *Self, allocator: std.mem.Allocator) Error![]*Ast.Statement {
+fn parseBlock(self: *Self, allocator: std.mem.Allocator) Error!Ast.Block {
     const lbrace = self.lexer.next() orelse return unexpectedEof("parseBlock (LBrace)");
     if (lbrace.token_kind != .LBrace) return expectedLBrace("parseBlock", lbrace);
 
@@ -207,7 +198,7 @@ fn parseBlock(self: *Self, allocator: std.mem.Allocator) Error![]*Ast.Statement 
     const rbrace = self.lexer.next() orelse return unexpectedEof("parseBlock (RBrace)");
     if (rbrace.token_kind != .RBrace) return expectedRBrace("parseBlock", rbrace);
 
-    return stmts.toOwnedSlice(allocator);
+    return .{ .statements = try stmts.toOwnedSlice(allocator) };
 }
 
 fn parseExpression(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
@@ -309,24 +300,19 @@ fn parseGrouping(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expressio
 
 const testing = std.testing;
 
-fn parseFromSource(allocator: std.mem.Allocator, source: []const u8) Error![]*Ast.Statement {
+fn parseFromSource(allocator: std.mem.Allocator, source: []const u8) Error!Ast.Block {
     var lex = Lexer.init(source);
     var parser = init(&lex);
     return parser.parse(allocator);
 }
 
-fn freeAst(allocator: std.mem.Allocator, stmts: []*Ast.Statement) void {
-    for (stmts) |s| s.deinit(allocator);
-    allocator.free(stmts);
-}
-
 test "parser: var declaration with type and initializer" {
     const allocator = testing.allocator;
-    const stmts = try parseFromSource(allocator, "var x : i32 = 42");
-    defer freeAst(allocator, stmts);
+    const ast = try parseFromSource(allocator, "var x : i32 = 42");
+    defer ast.deinit(allocator);
 
-    try testing.expectEqual(@as(usize, 1), stmts.len);
-    const var_dclr = stmts[0].var_dclr;
+    try testing.expectEqual(@as(usize, 1), ast.statements.len);
+    const var_dclr = ast.statements[0].var_dclr;
     try testing.expectEqualStrings("x", var_dclr.name);
     try testing.expect(var_dclr.is_mutable);
     try testing.expectEqualStrings("i32", var_dclr.type_annotation.?);
@@ -335,11 +321,11 @@ test "parser: var declaration with type and initializer" {
 
 test "parser: expression precedence binds * tighter than +" {
     const allocator = testing.allocator;
-    const stmts = try parseFromSource(allocator, "1 + 2 * 3");
-    defer freeAst(allocator, stmts);
+    const ast = try parseFromSource(allocator, "1 + 2 * 3");
+    defer ast.deinit(allocator);
 
-    try testing.expectEqual(@as(usize, 1), stmts.len);
-    const expr = stmts[0].expression_stmt;
+    try testing.expectEqual(@as(usize, 1), ast.statements.len);
+    const expr = ast.statements[0].expression_stmt;
     try testing.expectEqual(Ast.BinOp.Add, expr.binary.op);
     try testing.expectEqual(@as(f64, 1), expr.binary.left.literal.number);
     try testing.expectEqual(Ast.BinOp.Mul, expr.binary.right.binary.op);
@@ -349,15 +335,15 @@ test "parser: expression precedence binds * tighter than +" {
 
 test "parser: if/else parses both branches" {
     const allocator = testing.allocator;
-    const stmts = try parseFromSource(allocator, "if (true) { 1 } else { 2 }");
-    defer freeAst(allocator, stmts);
+    const ast = try parseFromSource(allocator, "if (true) { 1 } else { 2 }");
+    defer ast.deinit(allocator);
 
-    try testing.expectEqual(@as(usize, 1), stmts.len);
-    const if_stmt = stmts[0].if_stmt;
+    try testing.expectEqual(@as(usize, 1), ast.statements.len);
+    const if_stmt = ast.statements[0].if_stmt;
     try testing.expect(if_stmt.condition.literal.boolean);
-    try testing.expectEqual(@as(usize, 1), if_stmt.then_branch.len);
+    try testing.expectEqual(@as(usize, 1), if_stmt.then_branch.statements.len);
     try testing.expect(if_stmt.else_branch != null);
-    try testing.expectEqual(@as(usize, 1), if_stmt.else_branch.?.len);
-    try testing.expectEqual(@as(f64, 1), if_stmt.then_branch[0].expression_stmt.literal.number);
-    try testing.expectEqual(@as(f64, 2), if_stmt.else_branch.?[0].expression_stmt.literal.number);
+    try testing.expectEqual(@as(usize, 1), if_stmt.else_branch.?.statements.len);
+    try testing.expectEqual(@as(f64, 1), if_stmt.then_branch.statements[0].expression_stmt.literal.number);
+    try testing.expectEqual(@as(f64, 2), if_stmt.else_branch.?.statements[0].expression_stmt.literal.number);
 }
