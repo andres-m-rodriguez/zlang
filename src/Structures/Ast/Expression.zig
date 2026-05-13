@@ -10,12 +10,14 @@ pub const Expression = union(enum) {
     identifier: IdentExpr,
     unary: UnaryExpr,
     grouping: *Expression,
+    call: CallExpr,
 
     pub fn deinit(self: *Expression, allocator: std.mem.Allocator) void {
         switch (self.*) {
             .binary => |b| b.deinit(allocator),
             .unary => |u| u.deinit(allocator),
             .grouping => |g| g.deinit(allocator),
+            .call => |c| c.deinit(allocator),
             .literal, .identifier => {},
         }
         allocator.destroy(self);
@@ -47,6 +49,12 @@ pub const Expression = union(enum) {
         node.* = .{ .grouping = inner };
         return node;
     }
+
+    pub fn createCall(allocator: std.mem.Allocator, callee: []const u8, args: []*Expression) !*Expression {
+        const node = try allocator.create(Expression);
+        node.* = .{ .call = .{ .callee = callee, .args = args } };
+        return node;
+    }
 };
 
 pub const IdentExpr = struct {
@@ -70,5 +78,15 @@ pub const UnaryExpr = struct {
 
     pub fn deinit(self: UnaryExpr, allocator: std.mem.Allocator) void {
         self.operand.deinit(allocator);
+    }
+};
+
+pub const CallExpr = struct {
+    callee: []const u8,
+    args: []*Expression,
+
+    pub fn deinit(self: CallExpr, allocator: std.mem.Allocator) void {
+        for (self.args) |arg| arg.deinit(allocator);
+        allocator.free(self.args);
     }
 };

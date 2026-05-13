@@ -114,6 +114,7 @@ fn typeOfExpression(self: *Self, expr: *Expression.Expression) Error!ZType.Kind 
         .binary => |b| self.typeOfBinary(b),
         .unary => |u| self.typeOfUnary(u),
         .grouping => |inner| self.typeOfExpression(inner),
+        .call => .Nil,
     };
 }
 

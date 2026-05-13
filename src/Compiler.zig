@@ -204,5 +204,7 @@ fn compileExpression(self: *Self, allocator: std.mem.Allocator, expr: *Ast.Expre
         .grouping => |inner| {
             try self.compileExpression(allocator, inner);
         },
+
+        .call => {},
     }
 }

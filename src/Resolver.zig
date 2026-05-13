@@ -98,5 +98,7 @@ fn resolveExpression(self: *Self, expr: *Ast.Expression) Error!void {
         .grouping => |inner| {
             try self.resolveExpression(inner);
         },
+
+        .call => {},
     }
 }

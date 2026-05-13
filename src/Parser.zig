@@ -305,7 +305,41 @@ fn parseUnary(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
             return try Ast.Expression.createUnary(allocator, .Negate, operand);
         }
     }
-    return self.parsePrimary(allocator);
+    return self.parseCall(allocator);
+}
+
+fn parseCall(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
+    var expr = try self.parsePrimary(allocator);
+    while (self.lexer.peek()) |tok| {
+        if (tok.token_kind != .LParen) break;
+        if (expr.* != .identifier) return unexpected("parseCall (callee must be identifier)", tok);
+        const callee = expr.identifier.name;
+        expr.deinit(allocator);
+        _ = self.lexer.next(); // consume '('
+
+        var args: std.ArrayList(*Ast.Expression) = .empty;
+        errdefer {
+            for (args.items) |a| a.deinit(allocator);
+            args.deinit(allocator);
+        }
+
+        var next_token = self.lexer.peek() orelse return unexpectedEof("parseCall (args)");
+        if (next_token.token_kind != .RParen) {
+            while (true) {
+                const arg = try self.parseExpression(allocator);
+                try args.append(allocator, arg);
+                next_token = self.lexer.next() orelse return unexpectedEof("parseCall (arg separator)");
+                if (next_token.token_kind == .RParen) break;
+                if (next_token.token_kind != .Comma)
+                    return unexpected("parseCall (expected ',' or ')')", next_token);
+            }
+        } else {
+            _ = self.lexer.next(); // consume ')'
+        }
+
+        expr = try Ast.Expression.createCall(allocator, callee, try args.toOwnedSlice(allocator));
+    }
+    return expr;
 }
 
 fn parsePrimary(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression {
