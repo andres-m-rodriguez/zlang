@@ -53,6 +53,7 @@ fn compileStatement(self: *Self, allocator: std.mem.Allocator, statement: *Ast.S
         .if_stmt => try self.compileIfStmt(allocator, statement),
         .while_stmt => try self.compileWhile(allocator, statement),
         .return_stmt => try self.compileReturnStmt(allocator, statement),
+        .fn_stmt => {},
     }
 }
 

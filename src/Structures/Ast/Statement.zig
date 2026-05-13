@@ -1,6 +1,7 @@
 const std = @import("std");
 const Expression = @import("Expression.zig").Expression;
 const ZType = @import("ZType.zig");
+const Param = @import("Param.zig");
 
 pub const Block = struct {
     statements: []*Statement,
@@ -16,6 +17,7 @@ pub const Statement = union(enum) {
     assign_stmt: AssignStmt,
     if_stmt: IfStmt,
     while_stmt: WhileStmt,
+    fn_stmt: FnStmt,
     return_stmt: ReturnStmt,
     expression_stmt: *Expression,
 
@@ -85,6 +87,23 @@ pub const Statement = union(enum) {
         return node;
     }
 
+    pub fn createFunction(
+        allocator: std.mem.Allocator,
+        name: []const u8,
+        params: []const Param,
+        return_type: ZType,
+        body: Block,
+    ) !*Statement {
+        const node = try allocator.create(Statement);
+        node.* = .{ .fn_stmt = .{
+            .name = name,
+            .params = params,
+            .return_type = return_type,
+            .body = body,
+        } };
+        return node;
+    }
+
     pub fn createReturn(allocator: std.mem.Allocator, value: ?*Expression) !*Statement {
         const node = try allocator.create(Statement);
         node.* = .{ .return_stmt = .{ .value = value } };
@@ -102,6 +121,7 @@ pub const Statement = union(enum) {
             .var_dclr => |l| l.deinit(allocator),
             .if_stmt => |i| i.deinit(allocator),
             .while_stmt => |w| w.deinit(allocator),
+            .fn_stmt => |f| f.deinit(allocator),
             .assign_stmt => |a| a.deinit(allocator),
             .return_stmt => |r| r.deinit(allocator),
             .expression_stmt => |e| e.deinit(allocator),
@@ -160,5 +180,17 @@ pub const WhileStmt = struct {
     pub fn deinit(self: WhileStmt, allocator: std.mem.Allocator) void {
         self.condition.deinit(allocator);
         self.then_branch.deinit(allocator);
+    }
+};
+
+pub const FnStmt = struct {
+    name: []const u8,
+    params: []const Param,
+    return_type: ZType,
+    body: Block,
+
+    pub fn deinit(self: FnStmt, allocator: std.mem.Allocator) void {
+        self.body.deinit(allocator);
+        allocator.free(self.params);
     }
 };

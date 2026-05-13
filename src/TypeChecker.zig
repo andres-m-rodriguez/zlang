@@ -47,6 +47,7 @@ fn checkStatement(self: *Self, allocator: std.mem.Allocator, stmt: *Ast.Statemen
         .expression_stmt => |e| {
             _ = try self.typeOfExpression(e);
         },
+        .fn_stmt => {},
     }
 }
 

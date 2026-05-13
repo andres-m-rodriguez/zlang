@@ -1,9 +1,12 @@
 const statement_mod = @import("Ast/Statement.zig");
 const expression_mod = @import("Ast/Expression.zig");
 const value_mod = @import("Ast/Value.zig");
+const ztype_mod = @import("Ast/ZType.zig");
 const op_mod = @import("Ast/Op.zig");
+const param_mod = @import("Ast/Param.zig");
 
 pub const Statement = statement_mod.Statement;
+pub const ZType = ztype_mod;
 pub const Block = statement_mod.Block;
 pub const VarDeclr = statement_mod.VarDeclr;
 pub const IfStmt = statement_mod.IfStmt;
@@ -20,3 +23,5 @@ pub const ValueContext = value_mod.Context;
 
 pub const BinOp = op_mod.BinOp;
 pub const UnaryOp = op_mod.UnaryOp;
+
+pub const Param = param_mod;

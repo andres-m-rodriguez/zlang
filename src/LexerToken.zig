@@ -26,6 +26,7 @@ pub const TokenKind = enum {
     Return,
     True,
     False,
+    Fn,
 
     // Operators
     Plus,
@@ -47,4 +48,5 @@ pub const TokenKind = enum {
     LBrace,
     RBrace,
     Colon,
+    Comma,
 };

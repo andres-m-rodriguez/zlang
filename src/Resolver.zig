@@ -33,6 +33,7 @@ fn resolveStatment(self: *Self, allocator: std.mem.Allocator, statement: *Ast.St
         .while_stmt => try self.resolveWhileStmt(allocator, statement),
         .expression_stmt => try self.resolveExpression(statement.expression_stmt),
         .return_stmt => |r| if (r.value) |v| try self.resolveExpression(v),
+        .fn_stmt => {},
     }
 }
 fn resolveVarDeclr(self: *Self, allocator: std.mem.Allocator, statement: *Ast.Statement) Error!void {

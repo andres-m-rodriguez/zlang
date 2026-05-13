@@ -44,6 +44,7 @@ fn parseStatement(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statemen
         .If => return self.parseIf(allocator),
         .While => return self.parseWhile(allocator),
         .Return => return self.parseReturn(allocator),
+        .Fn => return self.parseFunction(allocator),
         else => {},
     }
     const expr = try self.parseExpression(allocator);
@@ -137,6 +138,58 @@ fn parseWhile(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
     errdefer then_branch.deinit(allocator);
 
     return Ast.Statement.createWhile(allocator, condition, then_branch);
+}
+fn parseFunction(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
+    var params: std.ArrayList(Ast.Param) = .empty;
+    errdefer params.deinit(allocator);
+
+    const kw = self.lexer.next() orelse unreachable; // consume 'fn'
+    std.debug.assert(kw.token_kind == .Fn);
+    const name = self.lexer.next() orelse return unexpectedEof("parseFn (FnName) ");
+    if (name.token_kind != .Identifier)
+        return unexpected("parseFn (FnName)", name);
+    const lp = self.lexer.next() orelse return unexpectedEof("parseFn (LParen)");
+    if (lp.token_kind != .LParen)
+        return unexpected("parseFn (expected '(')", lp);
+
+    var next_token = self.lexer.next() orelse return unexpectedEof("parseFn (Params)");
+    while (next_token.token_kind != .RParen) {
+        if (next_token.token_kind != .Identifier)
+            return unexpected("parseFn (expected identifier for param name)", next_token);
+        const param_name = next_token.value;
+        const colon = self.lexer.next() orelse return unexpectedEof("parseFn (Colon in param)");
+        if (colon.token_kind != .Colon)
+            return unexpected("parseFn (expected ':' in param)", colon);
+        const param_type = self.lexer.next() orelse return unexpectedEof("parseFn (Type in param)");
+        if (param_type.token_kind != .Identifier)
+            return unexpected("parseFn (expected identifier for param type)", param_type);
+
+        try params.append(allocator, Ast.Param.init(
+            param_name,
+            Ast.ZType.fromAnnotation(param_type.value),
+        ));
+
+        next_token = self.lexer.next() orelse return unexpectedEof("parseFn (param separator)");
+        if (next_token.token_kind == .RParen) break;
+        if (next_token.token_kind != .Comma)
+            return unexpected("parseFn (expected ',' or ')')", next_token);
+        next_token = self.lexer.next() orelse return unexpectedEof("parseFn (after comma)");
+    }
+
+    const ret_type = self.lexer.next() orelse return unexpectedEof("parseFn (return type)");
+    if (ret_type.token_kind != .Identifier)
+        return unexpected("parseFn (expected return type)", ret_type);
+
+    const body = try self.parseBlock(allocator);
+    errdefer body.deinit(allocator);
+
+    return Ast.Statement.createFunction(
+        allocator,
+        name.value,
+        try params.toOwnedSlice(allocator),
+        Ast.ZType.fromAnnotation(ret_type.value),
+        body,
+    );
 }
 fn parseReturn(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Statement {
     _ = self.lexer.next(); // consume 'return'
