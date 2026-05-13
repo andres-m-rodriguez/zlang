@@ -259,6 +259,7 @@ fn parsePrimary(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expression
     const tok = self.lexer.next() orelse return unexpectedEof("parsePrimary");
     return switch (tok.token_kind) {
         .Number => try Ast.Expression.createLiteral(allocator, try Ast.Value.createNumber(tok.value)),
+        .String => try Ast.Expression.createLiteral(allocator, Ast.Value.createString(tok.value)),
         .True => try Ast.Expression.createLiteral(allocator, .{ .boolean = true }),
         .False => try Ast.Expression.createLiteral(allocator, .{ .boolean = false }),
         .Identifier => try Ast.Expression.createIdentifier(allocator, tok.value),
@@ -337,7 +338,7 @@ test "parser: var declaration with type and initializer" {
     const var_dclr = ast.statements[0].var_dclr;
     try testing.expectEqualStrings("x", var_dclr.name);
     try testing.expect(var_dclr.is_mutable);
-    try testing.expectEqualStrings("i32", var_dclr.type_annotation.?);
+    try testing.expectEqualStrings("i32", var_dclr.type.annotation.?);
     try testing.expectEqual(@as(f64, 42), var_dclr.value.literal.number);
 }
 

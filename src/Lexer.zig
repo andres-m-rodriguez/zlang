@@ -34,6 +34,10 @@ pub fn scan(self: *Self) ?LexerToken {
         return numberToken;
     }
 
+    if (c == '"') {
+        return self.scanString();
+    }
+
     if (parseOperator(self.source[self.cursor..])) |operatorToken| {
         self.cursor += operatorToken.value.len;
         return operatorToken;
@@ -62,6 +66,21 @@ pub fn scan(self: *Self) ?LexerToken {
     self.cursor += 1;
     const slice: []const u8 = &[_]u8{c};
     return LexerToken.init(slice, .Unknown);
+}
+
+fn scanString(self: *Self) LexerToken {
+    const open = self.cursor;
+    self.cursor += 1;
+    const start = self.cursor;
+    while (self.cursor < self.source.len and self.source[self.cursor] != '"') {
+        self.cursor += 1;
+    }
+    if (self.cursor >= self.source.len) {
+        return LexerToken.init(self.source[open .. open + 1], .Unknown);
+    }
+    const inner = self.source[start..self.cursor];
+    self.cursor += 1;
+    return LexerToken.init(inner, .String);
 }
 
 fn skipTrivia(self: *Self) void {
@@ -190,6 +209,20 @@ test "lexer: keyword vs identifier" {
     const ident = lex.next().?;
     try testing.expectEqual(TokenKind.Identifier, ident.token_kind);
     try testing.expectEqualStrings("name", ident.value);
+}
+
+test "lexer: string literal yields inner bytes" {
+    var lex = init("\"Hello world\"");
+    const tok = lex.next().?;
+    try testing.expectEqual(TokenKind.String, tok.token_kind);
+    try testing.expectEqualStrings("Hello world", tok.value);
+    try testing.expect(lex.next() == null);
+}
+
+test "lexer: unterminated string is Unknown" {
+    var lex = init("\"oops");
+    const tok = lex.next().?;
+    try testing.expectEqual(TokenKind.Unknown, tok.token_kind);
 }
 
 test "lexer: two-char operators not split" {

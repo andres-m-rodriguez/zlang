@@ -156,6 +156,7 @@ fn checkBinaryOp(op: BinOp, left: ZType.Kind, right: ZType.Kind) Error!ZType.Kin
             return .Bool;
         },
         .Eq, .Neq => {
+            if (left == .String or right == .String) return Error.InvalidBinaryOperands;
             if (!std.meta.eql(left, right)) return Error.InvalidBinaryOperands;
             return .Bool;
         },

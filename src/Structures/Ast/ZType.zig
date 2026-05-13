@@ -26,7 +26,7 @@ pub fn resolve(annotation: []const u8) ?Kind {
     if (std.mem.eql(u8, annotation, "int")) return .{ .numeric = .Int };
     if (std.mem.eql(u8, annotation, "float")) return .{ .numeric = .Float };
     if (std.mem.eql(u8, annotation, "bool")) return .Bool;
-    if (std.mem.eql(u8, annotation, "string")) return .String;
+    if (std.mem.eql(u8, annotation, "str")) return .String;
     if (std.mem.eql(u8, annotation, "nil")) return .Nil;
     return null;
 }
