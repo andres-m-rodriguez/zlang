@@ -26,13 +26,13 @@ pub fn main(init: std.process.Init) !void {
     const ast = try parser.parse(allocator);
     defer ast.deinit(allocator);
 
-    var resolver = Resolver.init();
-    defer resolver.deinit(allocator);
-    try resolver.resolve(allocator, ast);
-
     var type_checker = TypeChecker.init();
     defer type_checker.deinit(allocator);
     try type_checker.check(allocator, ast);
+
+    var resolver = Resolver.init();
+    defer resolver.deinit(allocator);
+    try resolver.resolve(allocator, ast);
 
     var compiler = Compiler.init();
     defer compiler.deinit(allocator);
