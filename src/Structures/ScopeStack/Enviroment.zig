@@ -48,6 +48,16 @@ pub fn define(self: *Self, name: []const u8) !void {
     const current_scope = self.getCurrentScope();
     try current_scope.define(name);
 }
+pub fn beginFnFrame(self: *Self) SlotStore {
+    const saved = self.slots;
+    self.slots = SlotStore.init();
+    return saved;
+}
+
+pub fn endFnFrame(self: *Self, saved: SlotStore) void {
+    self.slots = saved;
+}
+
 pub fn resolve(self: *Self, name: []const u8) ?ResolveResult {
     var it = std.mem.reverseIterator(self.scopes.items);
     var depth: usize = 0;
