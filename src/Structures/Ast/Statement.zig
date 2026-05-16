@@ -90,7 +90,7 @@ pub const Statement = union(enum) {
     pub fn createFunction(
         allocator: std.mem.Allocator,
         name: []const u8,
-        params: []const Param,
+        params: []Param,
         return_type: ZType,
         body: Block,
     ) !*Statement {
@@ -185,9 +185,11 @@ pub const WhileStmt = struct {
 
 pub const FnStmt = struct {
     name: []const u8,
-    params: []const Param,
+    params: []Param,
     return_type: ZType,
     body: Block,
+    fn_idx: ?u32 = null,
+    locals_count: ?u16 = null,
 
     pub fn deinit(self: FnStmt, allocator: std.mem.Allocator) void {
         self.body.deinit(allocator);

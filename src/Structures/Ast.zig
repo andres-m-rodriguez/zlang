@@ -12,6 +12,7 @@ pub const VarDeclr = statement_mod.VarDeclr;
 pub const IfStmt = statement_mod.IfStmt;
 pub const AssignStmt = statement_mod.AssignStmt;
 pub const WhileStmt = statement_mod.WhileStmt;
+pub const FnStmt = statement_mod.FnStmt;
 
 pub const Expression = expression_mod.Expression;
 pub const BinaryExpr = expression_mod.BinaryExpr;

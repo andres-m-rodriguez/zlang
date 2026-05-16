@@ -84,6 +84,7 @@ pub const UnaryExpr = struct {
 pub const CallExpr = struct {
     callee: []const u8,
     args: []*Expression,
+    fn_idx: ?u32 = null,
 
     pub fn deinit(self: CallExpr, allocator: std.mem.Allocator) void {
         for (self.args) |arg| arg.deinit(allocator);
