@@ -1,14 +1,8 @@
-fn add(x: int, y: int) int {
-    return x + y;
-}
-const a: int = 1
-var x: int = 1
-const y: int = 10
-var w: str = "Hello world";
-while(x <= y) {
-    x = x + 1;
+fn fib(n: int) int {
+    if (n < 2) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
 }
 
-return add(10,10);
-
-
+return fib(30);
