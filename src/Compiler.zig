@@ -1,10 +1,12 @@
 const std = @import("std");
 
 const Bytecode = @import("Bytecode.zig");
+const Debug = @import("DebugLogger.zig");
 const Ast = @import("Structures/Ast.zig");
 const Value = @import("Structures/Ast/Value.zig").Value;
 const ConstantStore = @import("Structures/ConstantStore.zig");
 const CompilerState = @import("CompilerState.zig");
+const Program = @import("Program.zig");
 const Self = @This();
 
 pub const Error = error{
@@ -16,20 +18,33 @@ pub const Error = error{
 code: std.ArrayList(u8),
 constants: ConstantStore,
 state: CompilerState,
+functions: std.ArrayList(Program.Function),
 pub fn init() Self {
     return .{
         .code = .empty,
         .constants = ConstantStore.init(),
         .state = .init(),
+        .functions = .empty,
     };
 }
 
 pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
     self.code.deinit(allocator);
     self.constants.deinit(allocator);
+    for (self.functions.items) |*func| {
+        func.deinit(allocator);
+    }
+    self.functions.deinit(allocator);
 }
-
-pub fn compile(self: *Self, allocator: std.mem.Allocator, ast: Ast.Block) Error!Bytecode {
+pub fn compileProgram(self: *Self, allocator: std.mem.Allocator, ast: Ast.Block) Error!Program {
+    var program = Program.init();
+    errdefer program.deinit(allocator);
+    const main = try self.compileBytecode(allocator, ast);
+    program.main = main;
+    program.functions = try self.functions.toOwnedSlice(allocator);
+    return program;
+}
+pub fn compileBytecode(self: *Self, allocator: std.mem.Allocator, ast: Ast.Block) Error!Bytecode {
     for (ast.statements) |statement| {
         try self.compileStatement(allocator, statement);
     }
@@ -39,10 +54,11 @@ pub fn compile(self: *Self, allocator: std.mem.Allocator, ast: Ast.Block) Error!
         try self.emitByte(allocator, idx);
         try self.emitFromOpCode(allocator, .Return);
     }
-    return .{
+    const main = Bytecode{
         .code = try self.code.toOwnedSlice(allocator),
         .constants = try self.constants.toOwnedSlice(allocator),
     };
+    return main;
 }
 
 fn compileStatement(self: *Self, allocator: std.mem.Allocator, statement: *Ast.Statement) Error!void {
@@ -53,7 +69,7 @@ fn compileStatement(self: *Self, allocator: std.mem.Allocator, statement: *Ast.S
         .if_stmt => try self.compileIfStmt(allocator, statement),
         .while_stmt => try self.compileWhile(allocator, statement),
         .return_stmt => try self.compileReturnStmt(allocator, statement),
-        .fn_stmt => {},
+        .fn_stmt => try self.compileFn(allocator, statement),
     }
 }
 
@@ -106,6 +122,17 @@ fn compileReturnStmt(self: *Self, allocator: std.mem.Allocator, statement: *Ast.
     }
     try self.emitFromOpCode(allocator, .Return);
     self.state.has_return = true;
+}
+fn compileFn(self: *Self, allocator: std.mem.Allocator, statement: *Ast.Statement) !void {
+    const fn_stmt = statement.fn_stmt;
+    var sub_compiler = Self.init();
+    errdefer sub_compiler.deinit(allocator);
+    var sub_bytecode = try sub_compiler.compileBytecode(allocator, fn_stmt.body);
+    errdefer sub_bytecode.deinit(allocator);
+    const locals_count = fn_stmt.locals_count orelse unreachable;
+    var function = Program.Function.init(sub_bytecode, @intCast(fn_stmt.params.len), locals_count);
+    errdefer function.deinit(allocator);
+    try self.functions.append(allocator, function);
 }
 fn emitLoop(self: *Self, allocator: std.mem.Allocator, loop_start: usize) Error!void {
     try self.emitFromOpCode(allocator, .Loop);
@@ -192,7 +219,6 @@ fn compileExpression(self: *Self, allocator: std.mem.Allocator, expr: *Ast.Expre
             };
             try self.emitFromOpCode(allocator, op);
         },
-
         .unary => |u| {
             try self.compileExpression(allocator, u.operand);
             const op: Bytecode.Opcode = switch (u.op) {
@@ -200,11 +226,17 @@ fn compileExpression(self: *Self, allocator: std.mem.Allocator, expr: *Ast.Expre
             };
             try self.emitFromOpCode(allocator, op);
         },
-
         .grouping => |inner| {
             try self.compileExpression(allocator, inner);
         },
 
-        .call => {},
+        .call => |c| {
+            for (c.args) |arg| {
+                try self.compileExpression(allocator, arg);
+            }
+            _ = try self.emitFromOpCode(allocator, .OP_CALL);
+            try self.emitU32(allocator, c.fn_idx orelse unreachable);
+            try self.emitByte(allocator, @intCast(c.args.len));
+        },
     }
 }
