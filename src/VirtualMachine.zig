@@ -1,40 +1,48 @@
 const std = @import("std");
 const Value = @import("Structures/Ast.zig").Value;
 const Bytecode = @import("Bytecode.zig");
+const Program = @import("Program.zig");
+const FrameStore = @import("FrameStore.zig");
 const Self = @This();
 
-// Allocator is not stored, we pass it explicitly to init and deinit.
-// To match the unmanaged convention used throughout the codebase.
 stack: []Value,
 sp: usize,
-locals: []Value,
-constants: []const Value,
-pc: usize,
+frames: FrameStore,
+program: *const Program,
 
-pub fn init(allocator: std.mem.Allocator, stack_size: usize, locals_size: usize, constants: []const Value) !Self {
+pub fn init(
+    allocator: std.mem.Allocator,
+    stack_size: usize,
+    max_frames: usize,
+    locals_pool_size: usize,
+    program: *const Program,
+) !Self {
     return .{
         .stack = try allocator.alloc(Value, stack_size),
         .sp = 0,
-        .locals = try allocator.alloc(Value, locals_size),
-        .constants = constants,
-        .pc = 0,
+        .frames = try FrameStore.init(allocator, max_frames, locals_pool_size),
+        .program = program,
     };
 }
 
 pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
     allocator.free(self.stack);
-    allocator.free(self.locals);
+    self.frames.deinit(allocator);
 }
 
-pub fn run(self: *Self, bytecode: Bytecode) !?Value {
+pub fn run(self: *Self, main_locals_count: u16) !?Value {
+    try self.frames.push(&self.program.main, main_locals_count);
+
     while (true) {
-        const op = bytecode.readOpcode(self.pc);
-        self.pc += 1;
+        const frame = self.frames.current();
+        const op = frame.chunk.readOpcode(frame.pc);
+        frame.pc += 1;
+
         switch (op) {
             .LoadConst => {
-                const idx = bytecode.readByte(self.pc);
-                self.advance(.LoadConst);
-                try self.push(bytecode.constants[idx]);
+                const idx = frame.chunk.readByte(frame.pc);
+                frame.pc += 1;
+                try self.push(frame.chunk.constants[idx]);
             },
             .LoadTrue => {
                 try self.push(.{ .boolean = true });
@@ -43,17 +51,31 @@ pub fn run(self: *Self, bytecode: Bytecode) !?Value {
                 try self.push(.{ .boolean = false });
             },
             .LoadLocal => {
-                const slot = bytecode.readU32(self.pc);
-                self.advance(.LoadLocal);
-                try self.push(self.locals[slot]);
+                const slot = frame.chunk.readU32(frame.pc);
+                frame.pc += 4;
+                try self.push(frame.locals[slot]);
             },
             .StoreLocal => {
-                const slot = bytecode.readU32(self.pc);
-                self.advance(.StoreLocal);
-                self.locals[slot] = self.pop();
+                const slot = frame.chunk.readU32(frame.pc);
+                frame.pc += 4;
+                frame.locals[slot] = self.pop();
             },
             .Pop => {
                 _ = self.pop();
+            },
+            .OP_CALL => {
+                const func_idx = frame.chunk.readU32(frame.pc);
+                frame.pc += 4;
+                const func_args = frame.chunk.readByte(frame.pc);
+                frame.pc += 1;
+
+                const func = &self.program.functions[func_idx];
+                try self.frames.push(&func.chunk, func.locals_count);
+                const new_frame = self.frames.current();
+                var i: usize = func_args;
+                while (i > 0) : (i -= 1) {
+                    new_frame.locals[i - 1] = self.pop();
+                }
             },
             .Add => {
                 const b = self.pop();
@@ -114,31 +136,29 @@ pub fn run(self: *Self, bytecode: Bytecode) !?Value {
                 try self.push(.{ .boolean = !v.boolean });
             },
             .Jump => {
-                const offset = bytecode.readU16(self.pc);
-                self.advance(.Jump);
-                self.pc += offset;
+                const offset = frame.chunk.readU16(frame.pc);
+                frame.pc += 2;
+                frame.pc += offset;
             },
             .JumpIfFalse => {
-                const offset = bytecode.readU16(self.pc);
-                self.advance(.JumpIfFalse);
+                const offset = frame.chunk.readU16(frame.pc);
+                frame.pc += 2;
                 const cond = self.pop();
-                if (!cond.boolean) self.pc += offset;
+                if (!cond.boolean) frame.pc += offset;
             },
             .Loop => {
-                const offset = bytecode.readU16(self.pc);
-                self.advance(.Loop);
-                self.pc -= offset;
+                const offset = frame.chunk.readU16(frame.pc);
+                frame.pc += 2;
+                frame.pc -= offset;
             },
             .Return => {
-                if (self.sp > 0) return self.pop();
-                return null;
+                const ret_val: ?Value = if (self.sp > 0) self.pop() else null;
+                if (self.frames.count == 1) return ret_val; 
+                self.frames.pop();
+                if (ret_val) |v| try self.push(v);
             },
         }
     }
-}
-
-fn advance(self: *Self, op: Bytecode.Opcode) void {
-    self.pc += Bytecode.operandSize(op);
 }
 
 fn push(self: *Self, value: Value) !void {
