@@ -15,23 +15,54 @@ pub const Error = error{
     InvalidBinaryOperands,
     InvalidUnaryOperand,
     NilHasNoType,
+    ArityMismatch,
+    UnknownFunction,
+    DuplicateFunction,
 } || std.mem.Allocator.Error;
 
+const FunctionTable = std.StringHashMapUnmanaged(*Ast.FnStmt);
+
 env: TypeEnviroment,
+functions: FunctionTable,
+current_return_type: ?ZType.Kind,
 
 pub fn init() Self {
-    return .{ .env = TypeEnviroment.init() };
+    return .{
+        .env = TypeEnviroment.init(),
+        .functions = .empty,
+        .current_return_type = null,
+    };
 }
 
 pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
     self.env.deinit(allocator);
+    self.functions.deinit(allocator);
 }
 
 pub fn check(self: *Self, allocator: std.mem.Allocator, ast: Ast.Block) Error!void {
+    try self.collectFunctions(allocator, ast);
     try self.env.beginScope(allocator);
     defer self.env.endScope(allocator);
     for (ast.statements) |statement| {
         try self.checkStatement(allocator, statement);
+    }
+}
+
+fn collectFunctions(self: *Self, allocator: std.mem.Allocator, ast: Ast.Block) Error!void {
+    for (ast.statements) |statement| {
+        if (statement.* != .fn_stmt) continue;
+        const fs = &statement.fn_stmt;
+        if (fs.return_type.annotation) |annot| {
+            fs.return_type.resolved = ZType.resolve(annot) orelse return Error.UnknownType;
+        }
+        for (fs.params) |*p| {
+            if (p.param_type.annotation) |annot| {
+                p.param_type.resolved = ZType.resolve(annot) orelse return Error.UnknownType;
+            }
+        }
+        const result = try self.functions.getOrPut(allocator, fs.name);
+        if (result.found_existing) return Error.DuplicateFunction;
+        result.value_ptr.* = fs;
     }
 }
 
@@ -42,13 +73,31 @@ fn checkStatement(self: *Self, allocator: std.mem.Allocator, stmt: *Ast.Statemen
         .if_stmt => try self.checkIf(allocator, stmt),
         .while_stmt => try self.checkWhile(allocator, stmt),
         .return_stmt => |r| {
-            if (r.value) |v| _ = try self.typeOfExpression(v);
+            if (r.value) |v| {
+                const ret_kind = try self.typeOfExpression(v);
+                if (self.current_return_type) |expected| {
+                    if (!std.meta.eql(expected, ret_kind)) return Error.TypeMismatch;
+                }
+            }
         },
         .expression_stmt => |e| {
             _ = try self.typeOfExpression(e);
         },
-        .fn_stmt => {},
+        .fn_stmt => try self.checkFnStmt(allocator, stmt),
     }
+}
+
+fn checkFnStmt(self: *Self, allocator: std.mem.Allocator, stmt: *Ast.Statement) Error!void {
+    const fs = &stmt.fn_stmt;
+    try self.env.beginScope(allocator);
+    defer self.env.endScope(allocator);
+    for (fs.params) |p| {
+        try self.declareLocal(allocator, p.param_name, p.param_type.resolved.?);
+    }
+    const prev = self.current_return_type;
+    defer self.current_return_type = prev;
+    self.current_return_type = fs.return_type.resolved;
+    try self.checkBlock(allocator, fs.body);
 }
 
 fn checkVarDeclr(self: *Self, allocator: std.mem.Allocator, stmt: *Ast.Statement) Error!void {
@@ -114,8 +163,19 @@ fn typeOfExpression(self: *Self, expr: *Expression.Expression) Error!ZType.Kind 
         .binary => |b| self.typeOfBinary(b),
         .unary => |u| self.typeOfUnary(u),
         .grouping => |inner| self.typeOfExpression(inner),
-        .call => .Nil,
+        .call => |c| self.typeOfCall(c),
     };
+}
+
+fn typeOfCall(self: *Self, c: Expression.CallExpr) Error!ZType.Kind {
+    const fs = self.functions.get(c.callee) orelse return Error.UnknownFunction;
+    if (c.args.len != fs.params.len) return Error.ArityMismatch;
+    for (c.args, fs.params) |arg, param| {
+        const arg_kind = try self.typeOfExpression(arg);
+        const expected = param.param_type.resolved.?;
+        if (!std.meta.eql(arg_kind, expected)) return Error.TypeMismatch;
+    }
+    return fs.return_type.resolved.?;
 }
 
 fn typeOfBinary(self: *Self, b: Expression.BinaryExpr) Error!ZType.Kind {
