@@ -1,5 +1,5 @@
 const std = @import("std");
-const Bytecode = @import("Bytecode.zig");
+const Bytecode = @import("../Structures/Bytecode.zig");
 
 pub fn dumpBytecode(label: []const u8, bc: *const Bytecode) void {
     std.debug.print("=== {s} ===\n", .{label});

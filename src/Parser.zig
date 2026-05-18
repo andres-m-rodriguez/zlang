@@ -1,6 +1,6 @@
 const std = @import("std");
 const Lexer = @import("Lexer.zig");
-const LexerToken = @import("LexerToken.zig");
+const Token = @import("Lexer/Token.zig");
 const Ast = @import("Structures/Ast.zig");
 
 const Self = @This();
@@ -363,7 +363,7 @@ fn parseGrouping(self: *Self, allocator: std.mem.Allocator) Error!*Ast.Expressio
     return try Ast.Expression.createGrouping(allocator, inner);
 }
 
-fn unexpected(ctx: []const u8, tok: LexerToken) Error {
+fn unexpected(ctx: []const u8, tok: Token) Error {
     std.debug.print(
         "[parser] {s}: unexpected token kind={s} value=\"{s}\"\n",
         .{ ctx, @tagName(tok.token_kind), tok.value },
@@ -376,7 +376,7 @@ fn unexpectedEof(ctx: []const u8) Error {
     return Error.UnexpectedEof;
 }
 
-fn expectedIdent(ctx: []const u8, tok: LexerToken) Error {
+fn expectedIdent(ctx: []const u8, tok: Token) Error {
     std.debug.print(
         "[parser] {s}: expected identifier, got kind={s} value=\"{s}\"\n",
         .{ ctx, @tagName(tok.token_kind), tok.value },
@@ -384,7 +384,7 @@ fn expectedIdent(ctx: []const u8, tok: LexerToken) Error {
     return Error.ExpectedIdentifier;
 }
 
-fn expectedEquals(ctx: []const u8, tok: LexerToken) Error {
+fn expectedEquals(ctx: []const u8, tok: Token) Error {
     std.debug.print(
         "[parser] {s}: expected '=', got kind={s} value=\"{s}\"\n",
         .{ ctx, @tagName(tok.token_kind), tok.value },
@@ -392,7 +392,7 @@ fn expectedEquals(ctx: []const u8, tok: LexerToken) Error {
     return Error.ExpectedEquals;
 }
 
-fn expectedLBrace(ctx: []const u8, tok: LexerToken) Error {
+fn expectedLBrace(ctx: []const u8, tok: Token) Error {
     std.debug.print(
         "[parser] {s}: expected '{{', got kind={s} value=\"{s}\"\n",
         .{ ctx, @tagName(tok.token_kind), tok.value },
@@ -400,7 +400,7 @@ fn expectedLBrace(ctx: []const u8, tok: LexerToken) Error {
     return Error.ExpectedLBrace;
 }
 
-fn expectedRBrace(ctx: []const u8, tok: LexerToken) Error {
+fn expectedRBrace(ctx: []const u8, tok: Token) Error {
     std.debug.print(
         "[parser] {s}: expected '}}', got kind={s} value=\"{s}\"\n",
         .{ ctx, @tagName(tok.token_kind), tok.value },

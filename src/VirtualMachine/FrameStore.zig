@@ -1,6 +1,6 @@
 const std = @import("std");
-const Value = @import("Structures/Ast.zig").Value;
-const Bytecode = @import("Bytecode.zig");
+const Value = @import("../Structures/Ast.zig").Value;
+const Bytecode = @import("../Structures/Bytecode.zig");
 const Self = @This();
 
 pub const Error = error{

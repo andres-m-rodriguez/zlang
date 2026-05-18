@@ -1,1 +1,1 @@
-pub const Enviroment = @import("ScopeStack/Enviroment.zig");
+pub const Environment = @import("ScopeStack/Environment.zig");

@@ -1,5 +1,5 @@
 const std = @import("std");
-const Enviroment = @import("Structures/ScopeStack.zig").Enviroment;
+const Environment = @import("Structures/ScopeStack.zig").Environment;
 const Ast = @import("Structures/Ast.zig");
 const Self = @This();
 pub const Error = error{
@@ -7,11 +7,11 @@ pub const Error = error{
     AssignToConst,
     DuplicateFunction,
     UnknownFunction,
-} || Enviroment.Error;
+} || Environment.Error;
 
 const FunctionTable = std.StringHashMapUnmanaged(u32);
 
-env: Enviroment,
+env: Environment,
 functions: FunctionTable,
 next_fn_idx: u32,
 pub fn init() Self {

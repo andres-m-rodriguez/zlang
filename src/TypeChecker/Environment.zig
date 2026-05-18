@@ -1,5 +1,5 @@
 const std = @import("std");
-const ZType = @import("Structures/Ast/ZType.zig");
+const ZType = @import("../Structures/Ast/ZType.zig");
 const Self = @This();
 
 const Scope = std.StringHashMapUnmanaged(ZType.Kind);

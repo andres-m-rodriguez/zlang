@@ -4,7 +4,7 @@ const ZType = @import("Structures/Ast/ZType.zig");
 const Expression = @import("Structures/Ast/Expression.zig");
 const BinOp = @import("Structures/Ast/Op.zig").BinOp;
 const UnaryOp = @import("Structures/Ast/Op.zig").UnaryOp;
-const TypeEnviroment = @import("TypeEnviroment.zig");
+const Environment = @import("TypeChecker/Environment.zig");
 const Self = @This();
 
 pub const Error = error{
@@ -22,13 +22,13 @@ pub const Error = error{
 
 const FunctionTable = std.StringHashMapUnmanaged(*Ast.FnStmt);
 
-env: TypeEnviroment,
+env: Environment,
 functions: FunctionTable,
 current_return_type: ?ZType.Kind,
 
 pub fn init() Self {
     return .{
-        .env = TypeEnviroment.init(),
+        .env = Environment.init(),
         .functions = .empty,
         .current_return_type = null,
     };
