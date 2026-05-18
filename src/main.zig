@@ -5,8 +5,8 @@ const Parser = @import("Parser.zig");
 const Resolver = @import("Resolver.zig");
 const TypeChecker = @import("TypeChecker.zig");
 const Compiler = @import("Compiler.zig");
-const Bytecode = @import("Bytecode.zig");
-const Program = @import("Program.zig");
+const Bytecode = @import("Structures/Bytecode.zig");
+const Program = @import("Structures/Program.zig");
 const VirtualMachine = @import("VirtualMachine.zig");
 const Config = @import("Config.zig");
 const Z = @import("Z");
@@ -54,10 +54,10 @@ pub fn main(init: std.process.Init) !void {
         try writer.print("  [{d}] {any}\n", .{ i, value });
     }
     try writer.writeAll("=== result ===\n");
-    if (result) |v| {
-        try writer.print("  {any}\n", .{v});
-    } else {
-        try writer.writeAll("  (none)\n");
+    switch (result) {
+        .F64 => |v| try writer.print("  {d}\n", .{v}),
+        .Bool => |b| try writer.print("  {}\n", .{b}),
+        .Void => try writer.writeAll("  (void)\n"),
     }
     try writer.flush();
 }

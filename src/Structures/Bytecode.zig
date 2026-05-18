@@ -1,37 +1,69 @@
 const std = @import("std");
-const Value = @import("Structures/Ast/Value.zig").Value;
+const Value = @import("Ast/Value.zig").Value;
 const Self = @This();
+
+pub const PrimKind = enum {
+    F64,
+    Bool,
+    Void,
+};
+
+pub fn primSize(kind: PrimKind) u32 {
+    return switch (kind) {
+        .F64 => 8,
+        .Bool => 1,
+        .Void => 0,
+    };
+}
+
 pub const Opcode = enum(u8) {
-    // Stack / constants
-    LoadConst,
-    LoadTrue,
-    LoadFalse,
-    LoadLocal,
-    StoreLocal,
-    Pop,
-    OP_CALL,
-    // Arithmetic
+    // Constants & literals
+    LoadConst,      // operand: u8 const_idx — constant is f64, pushes 8 bytes
+    LoadTrue,       // pushes 1 byte
+    LoadFalse,      // pushes 1 byte
+
+    // Locals (typed)
+    LoadLocalF64,   // operand: u32 slot
+    LoadLocalBool,
+    StoreLocalF64,
+    StoreLocalBool,
+
+    // Calls
+    OP_CALL,        // operand: u32 fn_idx — arg widths come from Program.Function.param_kinds
+
+    // Arithmetic (f64, f64 → f64)
     Add,
     Sub,
     Mul,
     Div,
-    // Comparison
+
+    // Comparison (f64, f64 → bool)
     Lt,
     Lte,
     Gt,
     Gte,
-    Eq,
-    Neq,
+
+    // Equality (typed)
+    EqF64,
+    EqBool,
+    NeqF64,
+    NeqBool,
+
     // Unary
-    Neg,
-    Not,
+    Neg,            // f64 → f64
+    Not,            // bool → bool
+
     // Control flow
-    Jump, // operand: u16 forward relative offset
-    JumpIfFalse, // operand: u16 forward relative offset; pops a bool
-    Loop, // operand: u16 backward relative offset
-    // Termination
-    Return,
+    Jump,
+    JumpIfFalse,
+    Loop,
+
+    // Termination (typed)
+    ReturnF64,
+    ReturnBool,
+    ReturnVoid,
 };
+
 code: []const u8,
 constants: []const Value,
 pub fn init() Self {
@@ -43,7 +75,7 @@ pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
 }
 pub fn readOpcode(self: *const Self, pc: usize) Opcode {
     const byte = self.code[pc];
-    const max_tag = @intFromEnum(Opcode.Return);
+    const max_tag = @intFromEnum(Opcode.ReturnVoid);
     if (byte > max_tag) {
         std.debug.print(
             "readOpcode failed at pc={d}: byte=0x{x:0>2} ({d}), max_valid={d}, code.len={d}\n",
@@ -76,9 +108,9 @@ pub fn getConst(self: *const Self, idx: u8) Value {
 pub fn operandSize(op: Opcode) u32 {
     return switch (op) {
         .LoadConst => 1,
-        .LoadLocal, .StoreLocal => 4, // u32 slot
-        .Jump, .JumpIfFalse, .Loop => 2, // u16 offset
-        .OP_CALL => 5, // u32 + u8 (fn_indx and number of args)
+        .LoadLocalF64, .LoadLocalBool, .StoreLocalF64, .StoreLocalBool => 4,
+        .Jump, .JumpIfFalse, .Loop => 2,
+        .OP_CALL => 4,
         else => 0,
     };
 }

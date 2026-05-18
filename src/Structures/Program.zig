@@ -6,11 +6,21 @@ pub const Function = struct {
     chunk: ByteCode,
     arity: u8,
     locals_count: u16,
-    pub fn init(chunk: ByteCode, arity: u8, locals_count: u16) Function {
+    param_kinds: []ByteCode.PrimKind,
+    return_kind: ByteCode.PrimKind,
+    pub fn init(
+        chunk: ByteCode,
+        arity: u8,
+        locals_count: u16,
+        param_kinds: []ByteCode.PrimKind,
+        return_kind: ByteCode.PrimKind,
+    ) Function {
         return .{
             .chunk = chunk,
             .arity = arity,
             .locals_count = locals_count,
+            .param_kinds = param_kinds,
+            .return_kind = return_kind,
         };
     }
     pub fn deinit(
@@ -18,6 +28,7 @@ pub const Function = struct {
         allocator: std.mem.Allocator,
     ) void {
         self.chunk.deinit(allocator);
+        allocator.free(self.param_kinds);
     }
 };
 
