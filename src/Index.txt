@@ -1,8 +1,11 @@
-fn fib(n: int) int {
-    if (n < 2) {
-        return n;
-    }
-    return fib(n - 1) + fib(n - 2);
-}
+const x : int = 10;
+const y : int = 10;
 
-return fib(30);
+const results : int = add(x, y);
+
+return results;
+
+
+fn add(number1:int , number2:int) int {
+    return 10;
+}
